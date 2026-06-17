@@ -1,0 +1,7 @@
+[workspace]
+members = [
+  "contracts/arc_stellar_receipts",
+  "contracts/aquarius_adapter",
+  "contracts/blend_adapter"
+]
+resolver = "2"

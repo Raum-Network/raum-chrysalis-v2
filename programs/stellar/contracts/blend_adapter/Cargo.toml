@@ -1,0 +1,15 @@
+[package]
+name = "blend_adapter"
+version = "0.1.0"
+edition = "2021"
+description = "Chrysalis V2 Soroban adapter for Blend pool and backstop calls"
+license = "MIT"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+soroban-sdk = "21.7.7"
+
+[dev_dependencies]
+soroban-sdk = { version = "21.7.7", features = ["testutils"] }

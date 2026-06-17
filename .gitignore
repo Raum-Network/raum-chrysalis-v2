@@ -1,0 +1,51 @@
+# Node
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# Next.js
+.next/
+out/
+tsconfig.tsbuildinfo
+
+# Environment variables
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+.env.*
+
+# OS / IDE
+.DS_Store
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.swp
+
+# Foundry / Hardhat / Solidity
+cache/
+broadcast/
+out/
+artifacts/
+
+# Rust / Cargo (Solana & Stellar)
+target/
+Cargo.lock
+
+# Solana / Anchor
+.anchor/
+
+# Verity / Vercel
+.vercel/
+
+# Project Specific
+keys/
+*.log
+coverage/
+dist/

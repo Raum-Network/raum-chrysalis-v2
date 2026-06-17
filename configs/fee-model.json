@@ -1,0 +1,157 @@
+{
+  "quoteTtlSeconds": 120,
+  "defaultOptimizationGoal": "balanced",
+  "defaultPaymasterMode": "sponsored",
+  "routeWeights": {
+    "balanced": {
+      "cost": 0.34,
+      "speed": 0.3,
+      "reliability": 0.26,
+      "compatibility": 0.1
+    },
+    "lowest_cost": {
+      "cost": 0.62,
+      "speed": 0.12,
+      "reliability": 0.18,
+      "compatibility": 0.08
+    },
+    "fastest": {
+      "cost": 0.18,
+      "speed": 0.58,
+      "reliability": 0.16,
+      "compatibility": 0.08
+    },
+    "safest": {
+      "cost": 0.2,
+      "speed": 0.14,
+      "reliability": 0.56,
+      "compatibility": 0.1
+    }
+  },
+  "routes": {
+    "LOCAL": {
+      "label": "Local execution",
+      "circleProduct": "None",
+      "estimatedTimeSeconds": 8,
+      "reliabilityScore": 96,
+      "compatibilityScore": 96,
+      "notes": [
+        "No bridge is required because source and destination chain match."
+      ]
+    },
+    "GATEWAY": {
+      "label": "Circle Gateway",
+      "circleProduct": "Gateway",
+      "estimatedTimeSeconds": 10,
+      "reliabilityScore": 92,
+      "compatibilityScore": 88,
+      "demoBridgeFeeBps": 0.5
+    },
+    "CCTP_V2": {
+      "label": "Circle CCTP V2",
+      "circleProduct": "CCTP V2",
+      "estimatedTimeSeconds": 21,
+      "fastEstimatedTimeSeconds": 21,
+      "reliabilityScore": 95,
+      "compatibilityScore": 91,
+      "standardFeeBps": 0,
+      "defaultFastFeeBps": 1.3,
+      "fastFeeBpsBySourceChain": {
+        "ARC": 0,
+        "BASE_SEPOLIA": 1.3,
+        "ETHEREUM_SEPOLIA": 1.3,
+        "SOLANA_DEVNET": 1,
+        "STELLAR_TESTNET": 0
+      }
+    },
+    "BRIDGEKIT": {
+      "label": "Circle BridgeKit",
+      "circleProduct": "BridgeKit over CCTP",
+      "estimatedTimeSeconds": 32,
+      "reliabilityScore": 93,
+      "compatibilityScore": 93,
+      "serviceFeeBps": 0,
+      "usesCctpFeeModel": true
+    }
+  },
+  "chainGasUsd": {
+    "ARC": {
+      "bridgeGasUsd": 0.006,
+      "executionGasUsd": 0.009,
+      "currency": "USDC",
+      "paymasterEligible": true
+    },
+    "BASE_SEPOLIA": {
+      "bridgeGasUsd": 0.025,
+      "executionGasUsd": 0.035,
+      "currency": "ETH",
+      "paymasterEligible": true,
+      "paymasterSurchargeBps": 1000
+    },
+    "ETHEREUM_SEPOLIA": {
+      "bridgeGasUsd": 0.025,
+      "executionGasUsd": 0.035,
+      "currency": "ETH",
+      "paymasterEligible": true,
+      "paymasterSurchargeBps": 1000
+    },
+    "SOLANA_DEVNET": {
+      "bridgeGasUsd": 0.0005,
+      "executionGasUsd": 0.0008,
+      "currency": "SOL",
+      "paymasterEligible": true,
+      "gasStationSurchargeBps": 500
+    },
+    "STELLAR_TESTNET": {
+      "bridgeGasUsd": 0.0002,
+      "executionGasUsd": 0.0004,
+      "currency": "XLM",
+      "paymasterEligible": false
+    }
+  },
+  "protocolFees": {
+    "dex": {
+      "defaultProtocolFeeBps": 30,
+      "defaultSlippageBps": 50,
+      "minReceivedBufferBps": 5
+    },
+    "dex_clamm": {
+      "defaultProtocolFeeBps": 30,
+      "defaultSlippageBps": 50,
+      "minReceivedBufferBps": 5
+    },
+    "dex_aggregator": {
+      "defaultProtocolFeeBps": 30,
+      "defaultSlippageBps": 60,
+      "minReceivedBufferBps": 10
+    },
+    "fx": {
+      "defaultProtocolFeeBps": 5,
+      "defaultSlippageBps": 15,
+      "minReceivedBufferBps": 5
+    },
+    "lending": {
+      "defaultProtocolFeeBps": 0,
+      "defaultSlippageBps": 0,
+      "minReceivedBufferBps": 0
+    },
+    "tokenized_cash": {
+      "defaultProtocolFeeBps": 0,
+      "defaultSlippageBps": 0,
+      "minReceivedBufferBps": 0,
+      "warnings": [
+        "USYC/Teller access may require eligibility, allowlist, or offchain onboarding checks before execution."
+      ]
+    },
+    "unified_balance": {
+      "defaultProtocolFeeBps": 0,
+      "defaultSlippageBps": 0,
+      "minReceivedBufferBps": 0
+    },
+    "x402": {
+      "defaultProtocolFeeBps": 0,
+      "defaultSlippageBps": 0,
+      "minReceivedBufferBps": 0
+    }
+  }
+}

@@ -1,0 +1,22 @@
+[package]
+name = "kamino_adapter"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.75.0"
+description = "Chrysalis V2 Solana adapter for Kamino Lend (klend) CPI execution"
+license = "MIT"
+
+[lib]
+crate-type = ["cdylib", "lib"]
+name = "kamino_adapter"
+
+[features]
+default = []
+no-entrypoint = []
+no-idl = []
+no-log-ix-name = []
+cpi = ["no-entrypoint"]
+idl-build = ["anchor-lang/idl-build"]
+
+[dependencies]
+anchor-lang = "0.30.1"

@@ -1,0 +1,15 @@
+[package]
+name = "aquarius_adapter"
+version = "0.1.0"
+edition = "2021"
+description = "Chrysalis V2 Soroban adapter for Aquarius AMM router calls"
+license = "MIT"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+soroban-sdk = "21.7.7"
+
+[dev-dependencies]
+soroban-sdk = { version = "21.7.7", features = ["testutils"] }

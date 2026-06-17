@@ -1,0 +1,180 @@
+{
+  "arcTestnet": [
+    {
+      "key": "ARC_USDC_TRANSFER",
+      "name": "USDC Transfer",
+      "type": "bridge_transfer",
+      "category": "bridge",
+      "adapter": "bridge_only",
+      "supportedAdapterActions": [
+        "transfer"
+      ]
+    },
+    {
+      "key": "ARC_USYC_TELLER",
+      "name": "USYC Teller",
+      "type": "tokenized_cash",
+      "category": "defi",
+      "contract": "0x9fdF14c5B14173D74C08Af27AebFf39240dC105A",
+      "adapter": "ArcUsycTellerAdapter"
+    },
+    {
+      "key": "ARC_GATEWAY",
+      "name": "Circle Gateway Wallet",
+      "type": "unified_balance",
+      "category": "circle",
+      "circleService": "gateway",
+      "contract": "0x0077777d7EBA4688BDeF3E311b846F25870A19B9",
+      "adapter": "GatewayWalletAdapter"
+    },
+    {
+      "key": "ARC_NANOPAYMENTS",
+      "name": "Gateway x402 Nanopayments",
+      "type": "x402",
+      "category": "circle",
+      "circleService": "nanopayments",
+      "adapter": "NanopaymentAgent"
+    }
+  ],
+  "baseSepolia": [
+    {
+      "key": "BASE_USDC_TRANSFER",
+      "name": "USDC Transfer",
+      "type": "bridge_transfer",
+      "category": "bridge",
+      "adapter": "bridge_only",
+      "supportedAdapterActions": [
+        "transfer"
+      ]
+    },
+    {
+      "key": "BASE_UNISWAP_V3",
+      "name": "Uniswap V3",
+      "type": "dex",
+      "category": "defi",
+      "swapRouter02": "0x94cC0AaC535CCDB3C01d6787D6413C739ae12bc4",
+      "quoterV2": "0xC5290058841028F1614F3A6F0F5816cAd0df5E27",
+      "factory": "0x4752ba5DBc23f44D87826276BF6Fd6b1C372aD24",
+      "adapter": "UniswapV3Adapter"
+    },
+    {
+      "key": "BASE_MORPHO_BLUE",
+      "name": "Morpho Blue",
+      "type": "lending",
+      "category": "defi",
+      "morpho": "0xBBBBBbbBBb9cC5e90e3b3Af64bdAF62C37EEFFCb",
+      "adapter": "MorphoBlueAdapter"
+    }
+  ],
+  "ethereumSepolia": [
+    {
+      "key": "ETH_USDC_TRANSFER",
+      "name": "USDC Transfer",
+      "type": "bridge_transfer",
+      "category": "bridge",
+      "adapter": "bridge_only",
+      "supportedAdapterActions": [
+        "transfer"
+      ]
+    },
+    {
+      "key": "ETH_UNISWAP_V3",
+      "name": "Uniswap V3",
+      "type": "dex",
+      "category": "defi",
+      "swapRouter02": "0x3bFA4769FB09eefC5a80d6E87c3B9C650f7Ae48E",
+      "quoterV2": "0xEd1f6473345F45b75F8179591dd5bA1888cf2FB3",
+      "factory": "0x0227628f3F023bb0B980b67D528571c95c6DaC1c",
+      "adapter": "UniswapV3Adapter"
+    },
+    {
+      "key": "ETH_AAVE_V3",
+      "name": "Aave V3",
+      "type": "lending",
+      "category": "defi",
+      "poolAddressesProvider": "0x012bAC54348C0E635dCAc9D5FB99f06F24136C9A",
+      "pool": "0x6Ae43d3271ff6888e7Fc43Fd7321a503ff738951",
+      "adapter": "AaveV3SwapDepositAdapter"
+    }
+  ],
+  "solanaDevnet": [
+    {
+      "key": "SOL_USDC_TRANSFER",
+      "name": "USDC Transfer",
+      "type": "bridge_transfer",
+      "category": "bridge",
+      "adapter": "bridge_only",
+      "supportedAdapterActions": [
+        "transfer"
+      ]
+    },
+    {
+      "key": "SOL_MARINADE",
+      "name": "Marinade Finance",
+      "type": "liquid_staking",
+      "category": "defi",
+      "programId": "MarBmsSgKXdrN1egZf5sqe1TMai9K1rChYNDJgjq7aD",
+      "adapter": "marinade_adapter",
+      "adapterProgramId": "BiFFicCD6nAnLBBbuf1kFE9h6cbd895e1kTzYRJHJWmm",
+      "receiptSeed": "marinade-receipt",
+      "executorService": "MarinadeService",
+      "supportedAdapterActions": [
+        "supply"
+      ]
+    }
+  ],
+  "stellarTestnet": [
+    {
+      "key": "XLM_USDC_TRANSFER",
+      "name": "USDC Transfer",
+      "type": "bridge_transfer",
+      "category": "bridge",
+      "adapter": "bridge_only",
+      "supportedAdapterActions": [
+        "transfer"
+      ]
+    },
+    {
+      "key": "XLM_AQUARIUS",
+      "name": "Aquarius",
+      "type": "dex",
+      "category": "defi",
+      "network": "testnet",
+      "adapter": "aquarius_adapter",
+      "adapterContractEnv": "AQUARIUS_ADAPTER_CONTRACT_ID",
+      "routerContractEnv": "AQUARIUS_ROUTER_CONTRACT_ID",
+      "poolContractEnv": "AQUARIUS_POOL_CONTRACT_ID",
+      "executorService": "AquariusService",
+      "supportedAdapterActions": [
+        "SwapChained",
+        "SwapChainedStrictReceive",
+        "Swap",
+        "Deposit",
+        "Withdraw"
+      ]
+    },
+    {
+      "key": "XLM_BLEND",
+      "name": "Blend Capital",
+      "type": "lending",
+      "category": "defi",
+      "network": "testnet",
+      "adapter": "blend_capital_testnet",
+      "dashboardUrl": "https://testnet.blend.capital/dashboard/",
+      "adapterContractEnv": "BLEND_ADAPTER_CONTRACT_ID",
+      "poolContractEnv": "BLEND_POOL_CONTRACT_ID",
+      "poolFactoryV2": "CDV6RX4CGPCOKGTBFS52V3LMWQGZN3LCQTXF5RVPOOCG4XVMHXQ4NTF6",
+      "backstopV2": "CBDVWXT433PRVTUNM56C3JREF3HIZHRBA64NB2C3B2UNCKIS65ZYCLZA",
+      "defaultPool": "CCEBVDYM32YNYCVNRXQKDFFPISJJCV557CDZEIRBEE4NCV4KHPQ44HGF",
+      "tokens": {
+        "USDC": "CAQCFVLOBK5GIULPNZRGATJJMIZL5BSP7X5YJVMGCPTUEPFM4AVSRCJU",
+        "XLM": "CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC",
+        "BLND": "CB22KRA3YZVCNCQI64JQ5WE7UY2VAV7WFLK6A2JN3HEX56T2EDAFO7QF"
+      },
+      "executorService": "BlendCapitalService",
+      "supportedAdapterActions": [
+        "supply"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,12 @@
+[workspace]
+members = [
+  "programs/arc_solana_receipts",
+  "adapters/kamino_adapter",
+  "adapters/raydium_adapter",
+  "adapters/marinade_adapter"
+]
+resolver = "2"
+
+[profile.release]
+overflow-checks = true
+

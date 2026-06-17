@@ -1,0 +1,80 @@
+{
+  "maxSingleIntentUsdc": 25,
+  "maxDailyUsdc": 200,
+  "maxSlippageBps": 75,
+  "preferGatewayUnderUsdc": 100,
+  "requireHumanApprovalOverUsdc": 25,
+  "allowedChains": [
+    "ARC",
+    "BASE_SEPOLIA",
+    "ETHEREUM_SEPOLIA",
+    "SOLANA_DEVNET",
+    "STELLAR_TESTNET"
+  ],
+  "allowedProtocols": [
+    "ARC_USDC_TRANSFER",
+    "ARC_USYC_TELLER",
+    "ARC_GATEWAY",
+    "ARC_NANOPAYMENTS",
+    "BASE_USDC_TRANSFER",
+    "BASE_UNISWAP_V3",
+    "BASE_MORPHO_BLUE",
+    "ETH_USDC_TRANSFER",
+    "ETH_UNISWAP_V3",
+    "ETH_AAVE_V3",
+    "SOL_USDC_TRANSFER",
+    "SOL_KAMINO_LEND",
+    "SOL_RAYDIUM_CPMM",
+    "SOL_MARINADE",
+    "XLM_USDC_TRANSFER",
+    "XLM_AQUARIUS",
+    "XLM_BLEND"
+  ],
+  "routePreferences": [
+    "GATEWAY",
+    "BRIDGEKIT",
+    "CCTP_V2"
+  ],
+  "blockedSelectors": [],
+  "autonomousMode": {
+    "enabled": true,
+    "dryRunDefault": true,
+    "rebalanceMinArcUsdc": 50,
+    "rebalanceTargetArcUsdc": 150
+  },
+  "maxUserPaysUsd": "0.50",
+  "defaultOptimizationGoal": "balanced",
+  "feeQuoting": {
+    "gatewayTransferFeeBps": 0.5,
+    "cctpFastTransferFeeBps": 1,
+    "bridgeKitUnderlyingFeeBps": 1,
+    "defaultSlippageBps": 50,
+    "paymasterSponsorDestinationGas": true
+  },
+  "routeScoring": {
+    "balanced": {
+      "cost": 0.35,
+      "speed": 0.25,
+      "reliability": 0.25,
+      "compatibility": 0.15
+    },
+    "cost": {
+      "cost": 0.55,
+      "speed": 0.15,
+      "reliability": 0.2,
+      "compatibility": 0.1
+    },
+    "speed": {
+      "cost": 0.2,
+      "speed": 0.55,
+      "reliability": 0.15,
+      "compatibility": 0.1
+    },
+    "reliability": {
+      "cost": 0.2,
+      "speed": 0.15,
+      "reliability": 0.55,
+      "compatibility": 0.1
+    }
+  }
+}

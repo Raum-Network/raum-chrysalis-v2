@@ -1,0 +1,34 @@
+{
+  "name": "@arc-os/web",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "WATCHPACK_POLLING=true CHOKIDAR_USEPOLLING=true next dev -p 3000",
+    "build": "next build",
+    "lint": "next lint || true"
+  },
+  "dependencies": {
+    "@arc-os/sdk": "workspace:*",
+    "@rainbow-me/rainbowkit": "^2.2.11",
+    "@solana/wallet-adapter-base": "^0.9.27",
+    "@solana/wallet-adapter-react": "^0.15.39",
+    "@solana/wallet-adapter-react-ui": "^0.9.39",
+    "@solana/wallet-adapter-wallets": "^0.19.38",
+    "@stellar/freighter-api": "^6.0.1",
+    "@stellar/stellar-sdk": "^15.1.0",
+    "@tanstack/react-query": "^5.101.0",
+    "next": "^14.2.15",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "viem": "^2.52.2",
+    "wagmi": "^2.19.5"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.12",
+    "@types/react": "^18.3.11",
+    "@types/react-dom": "^18.3.0",
+    "pino-pretty": "^13.1.3",
+    "typescript": "^5.6.3"
+  }
+}

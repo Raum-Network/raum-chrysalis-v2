@@ -1,0 +1,38 @@
+{
+  "name": "@arc-os/api",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/server.ts",
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/server.js",
+    "lint": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@arc-os/sdk": "workspace:*",
+    "@blend-capital/blend-sdk": "^3.2.2",
+    "@circle-fin/adapter-viem-v2": "^1.11.2",
+    "@circle-fin/bridge-kit": "^1.10.2",
+    "@circle-fin/x402-batching": "3.0.4",
+    "@kamino-finance/farms-sdk": "^3.2.26",
+    "@kamino-finance/klend-sdk": "^8.0.2",
+    "@raydium-io/raydium-sdk-v2": "0.2.52-alpha",
+    "@solana/spl-token": "0.4.13",
+    "@solana/web3.js": "^1.98.4",
+    "@stellar/stellar-sdk": "^15.1.0",
+    "@x402/core": "2.15.0",
+    "@x402/evm": "2.15.0",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "nanoid": "^5.0.7",
+    "viem": "^2.21.40",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.17",
+    "@types/express": "^4.17.21",
+    "typescript": "^5.6.3"
+  }
+}

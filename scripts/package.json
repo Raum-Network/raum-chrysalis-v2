@@ -1,0 +1,19 @@
+{
+  "name": "@arc-os/scripts",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "lint": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@arc-os/sdk": "workspace:*",
+    "dotenv": "^16.4.5",
+    "viem": "^2.21.40"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.3",
+    "tsx": "^4.19.2"
+  }
+}
