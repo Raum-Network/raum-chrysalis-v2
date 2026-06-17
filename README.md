@@ -1,6 +1,6 @@
 # 🌌 Chrysalis V2
 
-Chrysalis V2 is a hackathon-ready monorepo for a unified cross-chain settlement and protocol execution platform. It enables users and autonomous AI agents to seamlessly move stablecoins (USDC) between Arc Testnet and external chains (Base Sepolia, Arbitrum Sepolia, Solana Devnet, and Stellar Testnet), and automatically execute protocol actions in a single atomic pipeline.
+Chrysalis V2 is a monorepo for a unified cross-chain settlement and protocol execution platform. It enables users and autonomous AI agents to seamlessly move stablecoins (USDC) between Arc Testnet and external chains (Base Sepolia, Arbitrum Sepolia, Solana Devnet, and Stellar Testnet), and automatically execute protocol actions in a single atomic pipeline.
 
 The repository is built around five core product pillars, backed by a sophisticated multi-agent AI control plane and modular protocol adapters.
 
