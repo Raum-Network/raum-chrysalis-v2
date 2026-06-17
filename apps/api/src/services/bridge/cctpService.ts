@@ -7,6 +7,7 @@ import {
 } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { env, findChainByKey } from "../../config/index.js";
+import { loadSolanaKeypair as loadSolanaKeypairUtil } from "../../utils/solanaKeys.js";
 import { FeeLineItem, RoutePlan } from "../../types.js";
 import {
   evmTransactionFeeLine,
@@ -1053,9 +1054,9 @@ async function waitForStellarTransaction(server: SorobanRpc.Server, txHash: stri
 }
 
 function loadSolanaKeypair(): Keypair {
-  const path = env.solanaKeypairPath || process.env.SOLANA_KEYPAIR_PATH || "./keys/solana-devnet.json";
-  const secret = JSON.parse(readFileSync(path, "utf8")) as number[];
-  return Keypair.fromSecretKey(Uint8Array.from(secret));
+  const keypair = loadSolanaKeypairUtil();
+  if (!keypair) throw new Error("Solana operator keypair not configured.");
+  return keypair;
 }
 
 function loadStellarKeypair(): StellarKeypair {

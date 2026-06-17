@@ -14,6 +14,7 @@ import {
   arcTestnet
 } from "../providers";
 import { freighterErrorMessage, useWalletConnections } from "./WalletConnectionContext";
+import AIAssistant from "./AIAssistant";
 
 const GATEWAY_WALLET_ABI = [
   { name: "deposit", type: "function", stateMutability: "nonpayable", inputs: [{ name: "token", type: "address" }, { name: "value", type: "uint256" }], outputs: [] },
@@ -1361,6 +1362,77 @@ export default function FlowBuilder() {
 
   const swapTokens = CHAIN_SWAP_TOKENS[destinationChain] ?? [];
 
+  const applyIntent = useCallback((intent: any, quote?: any) => {
+    if (!intent) return;
+    if (intent.sourceChain) setSourceChain(intent.sourceChain);
+    if (intent.destinationChain) setDestinationChain(intent.destinationChain);
+    if (intent.protocol) setProtocol(intent.protocol);
+    if (intent.amount) setAmount(intent.amount);
+    if (intent.action) setAction(intent.action);
+    if (intent.preferredRoute) setPreferredRoute(intent.preferredRoute);
+    if (intent.optimizationGoal) setOptimizationGoal(intent.optimizationGoal);
+    if (intent.metadata?.tokenOut) setTokenOut(intent.metadata.tokenOut);
+
+    if (quote) {
+      setQuote(quote);
+    } else {
+      setTimeout(() => {
+        void loadRoutes(true);
+      }, 100);
+    }
+  }, [loadRoutes]);
+
+  const executeIntent = useCallback((intent: any, quote?: any) => {
+    if (!intent) return;
+    if (intent.sourceChain) setSourceChain(intent.sourceChain);
+    if (intent.destinationChain) setDestinationChain(intent.destinationChain);
+    if (intent.protocol) setProtocol(intent.protocol);
+    if (intent.amount) setAmount(intent.amount);
+    if (intent.action) setAction(intent.action);
+    if (intent.preferredRoute) setPreferredRoute(intent.preferredRoute);
+    if (intent.optimizationGoal) setOptimizationGoal(intent.optimizationGoal);
+    if (intent.metadata?.tokenOut) setTokenOut(intent.metadata.tokenOut);
+
+    if (quote) {
+      setQuote(quote);
+      setTimeout(() => {
+        void handleExecute();
+      }, 150);
+    } else {
+      setLoading("quote");
+      setError(null);
+      setTxHash(null);
+      setQuote(null);
+
+      const req = {
+        sourceChain: intent.sourceChain,
+        destinationChain: intent.destinationChain,
+        asset: "USDC" as const,
+        amount: intent.amount,
+        protocol: intent.protocol,
+        action: intent.action,
+        slippageBps: 50,
+        recipient: intent.recipient || sourceWalletAddress,
+        metadata: intent.metadata,
+        preferredRoute: intent.preferredRoute || "",
+        optimizationGoal: intent.optimizationGoal || "balanced",
+        maxTotalFeeUsd: "5"
+      };
+
+      client.quote(req)
+        .then((response) => {
+          setQuote(response);
+          setTimeout(() => {
+            void handleExecute();
+          }, 150);
+        })
+        .catch((err) => {
+          setError(err instanceof Error ? err.message : String(err));
+          setLoading(null);
+        });
+    }
+  }, [sourceWalletAddress, handleExecute]);
+
   async function handlePrimaryCta() {
     if (needsSolanaSourceWallet) return setError("Please connect your Solana wallet using the Connect Wallet button at the top left.");
     if (needsStellarSourceWallet) return setError("Please connect your Stellar wallet using the Connect Wallet button at the top left.");
@@ -1762,6 +1834,16 @@ export default function FlowBuilder() {
           <NoRoutePanel quote={quote} onClose={() => setQuote(null)} />
         ) : null}
       </div>
+
+      <AIAssistant
+        connectedWallet={address}
+        connectedChain={sourceChain}
+        solanaWallet={solanaAddress}
+        stellarWallet={stellarAddress}
+        apiUrl={API_URL}
+        onApplyIntent={applyIntent}
+        onExecuteIntent={executeIntent}
+      />
     </div>
   );
 }

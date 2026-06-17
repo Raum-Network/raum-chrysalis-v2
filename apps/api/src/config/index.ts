@@ -23,6 +23,8 @@ export const env = {
   circleApiKey: process.env.CIRCLE_API_KEY ?? "",
   circleGatewayApiUrl: process.env.CIRCLE_GATEWAY_API_URL ?? "https://gateway-api-testnet.circle.com",
   circleIrisApiUrl: process.env.CIRCLE_IRIS_API_URL ?? "https://iris-api-sandbox.circle.com",
+  geminiApiKey: process.env.GEMINI_API_KEY ?? process.env.GOOGLE_API_KEY ?? "",
+  geminiModel: process.env.GEMINI_MODEL ?? "gemini-3.5-flash",
 
   arcRouterAddress: process.env.ARC_ROUTER_ADDRESS ?? "",
   baseRouterAddress: process.env.BASE_ROUTER_ADDRESS ?? "",
@@ -39,6 +41,7 @@ export const env = {
   blendBackstopContractId: process.env.BLEND_BACKSTOP_CONTRACT_ID ?? "",
   blendPoolFactoryContractId: process.env.BLEND_POOL_FACTORY_CONTRACT_ID ?? "",
   solanaKeypairPath: process.env.SOLANA_KEYPAIR_PATH ?? "./keys/solana-devnet.json",
+  solanaPrivateKey: process.env.SOLANA_PRIVATE_KEY ?? "",
   stellarSecretKey: process.env.STELLAR_SECRET_KEY ?? "",
   operatorPrivateKey: process.env.OPERATOR_PRIVATE_KEY ?? "",
   agentPrivateKey: process.env.AGENT_PRIVATE_KEY ?? "",

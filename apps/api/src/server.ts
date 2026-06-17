@@ -8,9 +8,11 @@ import { type Hex } from "viem";
 import { Keypair as SolanaKeypair } from "@solana/web3.js";
 import { Keypair as StellarKeypair } from "@stellar/stellar-sdk";
 import { env, chainConfig, protocolConfig, protocolGroupForChainKey, hasGatewayContracts, hasCctpEvmContracts } from "./config/index.js";
+import { loadSolanaKeypair } from "./utils/solanaKeys.js";
 import { intentOrchestrator, createIntentSchema } from "./workflows/intentOrchestrator.js";
 import { store } from "./store/memory.js";
 import { agentManager } from "./agents/AgentManager.js";
+import { geminiChatService } from "./services/ai/geminiChatService.js";
 import { nanopaymentAgent } from "./agents/NanopaymentAgent.js";
 import { GatewayService } from "./services/bridge/gatewayService.js";
 import { TreasuryRebalancerAgent } from "./agents/TreasuryRebalancerAgent.js";
@@ -96,15 +98,13 @@ app.get("/config", (_req: any, res: any) => {
 });
 
 function readSolanaOperatorAddress(): string | undefined {
-  const configuredPath = env.solanaKeypairPath || process.env.SOLANA_KEYPAIR_PATH;
-  if (!configuredPath) return undefined;
-  const candidates = isAbsolute(configuredPath)
-    ? [configuredPath]
-    : [resolve(process.cwd(), configuredPath), resolve(process.cwd(), "../..", configuredPath)];
-  const keypairPath = candidates.find((candidate) => existsSync(candidate));
-  if (!keypairPath) return undefined;
-  const raw = JSON.parse(readFileSync(keypairPath, "utf8")) as number[];
-  return SolanaKeypair.fromSecretKey(Uint8Array.from(raw)).publicKey.toBase58();
+  try {
+    const keypair = loadSolanaKeypair();
+    return keypair?.publicKey.toBase58();
+  } catch (err) {
+    console.error("[Server] Failed to load Solana operator address:", err);
+    return undefined;
+  }
 }
 
 function chainKeyForGroup(group: string): string {
@@ -159,6 +159,20 @@ app.post("/agents/analyze", async (req: any, res: any) => {
   const parsed = createIntentSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
   res.json(await agentManager.analyze(parsed.data));
+});
+
+app.post("/agents/chat", async (req: any, res: any) => {
+  const { message, connectedWallet, connectedChain, solanaWallet, stellarWallet } = req.body;
+  if (!message) {
+    return res.status(400).json({ error: "Missing message parameter" });
+  }
+  const result = await geminiChatService.chat(message, {
+    connectedWallet,
+    connectedChain,
+    solanaWallet,
+    stellarWallet
+  });
+  res.json(result);
 });
 
 app.get("/gateway/balances/:owner", async (req: any, res: any) => {

@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { env, findProtocol, findChainByKey } from "../../config/index.js";
 import { formatUnitsDecimal } from "../../utils/amounts.js";
+import { loadSolanaKeypair } from "../../utils/solanaKeys.js";
 import { resolveSolanaAdapterPayload } from "./nonEvmPayloads.js";
 import { simulateMarinadeDepositWithSwap, simulateSolanaAdapter, submitSolanaAdapter, submitMarinadeDepositWithSwap } from "./solanaAdapterSubmitter.js";
 import { solanaLamportsFeeLine, sumFeeLinesUsd } from "../fees/transactionFeeUtils.js";
@@ -81,9 +82,7 @@ export class MarinadeService {
         try {
           const rpcUrl = process.env[chain.rpcEnv] ?? chain.rpcUrl;
           const connection = new Connection(rpcUrl, "confirmed");
-          const authority = env.solanaKeypairPath
-            ? await loadSolanaPubkey(env.solanaKeypairPath)
-            : new PublicKey("11111111111111111111111111111111");
+          const authority = (await loadSolanaPubkey()) ?? new PublicKey("11111111111111111111111111111111");
 
           const recipientStr = action.recipient || authority.toBase58();
           const recipientPk = new PublicKey(recipientStr);
@@ -139,9 +138,7 @@ export class MarinadeService {
           const connection = new Connection(rpcUrl, "confirmed");
 
           const solAmount = rawAmount(action.executionAmount ?? action.amountRaw ?? action.amount, 9);
-          const authority = env.solanaKeypairPath
-            ? await loadSolanaPubkey(env.solanaKeypairPath)
-            : new PublicKey("11111111111111111111111111111111");
+          const authority = (await loadSolanaPubkey()) ?? new PublicKey("11111111111111111111111111111111");
 
           const recipientStr = action.recipient || authority.toBase58();
           const recipientPk = new PublicKey(recipientStr);
@@ -415,8 +412,7 @@ async function estimateRaydiumWsolOutLamports(connection: Connection, amountInRa
   return out > 0n ? out : 1n;
 }
 
-async function loadSolanaPubkey(keypairPath: string): Promise<PublicKey> {
-  const fs = await import("node:fs");
-  const raw = JSON.parse(fs.readFileSync(keypairPath, "utf8"));
-  return Keypair.fromSecretKey(Uint8Array.from(raw)).publicKey;
+async function loadSolanaPubkey(): Promise<PublicKey | undefined> {
+  const kp = loadSolanaKeypair();
+  return kp?.publicKey;
 }

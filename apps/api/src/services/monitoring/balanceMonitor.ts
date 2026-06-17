@@ -7,6 +7,7 @@ import { Connection, Keypair, LAMPORTS_PER_SOL, PublicKey } from "@solana/web3.j
 import { getAssociatedTokenAddressSync } from "@solana/spl-token";
 import { Horizon, Keypair as StellarKeypair } from "@stellar/stellar-sdk";
 import { chainConfig, env } from "../../config/index.js";
+import { loadSolanaKeypair as loadSolanaKeypairUtil } from "../../utils/solanaKeys.js";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(here, "../../../../..");
@@ -225,18 +226,7 @@ function operatorAddress(): string | undefined {
 }
 
 function loadSolanaKeypair(): Keypair | undefined {
-  const configuredPath = env.solanaKeypairPath;
-  const candidates = isAbsolute(configuredPath)
-    ? [configuredPath]
-    : [resolve(repoRoot, configuredPath), resolve(process.cwd(), configuredPath)];
-  const keypairPath = candidates.find((candidate) => existsSync(candidate));
-  if (!keypairPath) return undefined;
-  try {
-    const raw = JSON.parse(readFileSync(keypairPath, "utf8")) as number[];
-    return Keypair.fromSecretKey(Uint8Array.from(raw));
-  } catch {
-    return undefined;
-  }
+  return loadSolanaKeypairUtil();
 }
 
 function formatAmount(value: number): string {

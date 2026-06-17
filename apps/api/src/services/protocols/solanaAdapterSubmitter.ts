@@ -21,6 +21,7 @@ import {
   getAssociatedTokenAddressSync
 } from "@solana/spl-token";
 import { env, findChainByKey } from "../../config/index.js";
+import { loadSolanaKeypair as loadSolanaKeypairUtil } from "../../utils/solanaKeys.js";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(here, "../../../../..");
@@ -206,16 +207,9 @@ function intentIdBytes(intentId: string): Buffer {
 }
 
 function loadSolanaKeypair(): Keypair {
-  const configuredPath = env.solanaKeypairPath;
-  const candidates = isAbsolute(configuredPath)
-    ? [configuredPath]
-    : [resolve(repoRoot, configuredPath), resolve(process.cwd(), configuredPath)];
-
-  const keypairPath = candidates.find((candidate) => existsSync(candidate));
-  if (!keypairPath) throw new Error(`Solana keypair not found at ${configuredPath}`);
-
-  const raw = JSON.parse(readFileSync(keypairPath, "utf8")) as number[];
-  return Keypair.fromSecretKey(Uint8Array.from(raw));
+  const keypair = loadSolanaKeypairUtil();
+  if (!keypair) throw new Error("Solana operator keypair not configured.");
+  return keypair;
 }
 
 // --- Marinade deposit_with_swap (composite: USDC → wSOL → native SOL → mSOL) ---
