@@ -12,7 +12,7 @@ contract RegisterEthUniswapV3Adapter is Script {
         address routerAddress = vm.envAddress("ETHEREUM_ROUTER_ADDRESS");
         address swapRouter02 = vm.envAddress("ETH_UNISWAP_SWAP_ROUTER_02");
 
-        ArcIntentRouterUpgradeable router = ArcIntentRouterUpgradeable(routerAddress);
+        ArcIntentRouterUpgradeable router = ArcIntentRouterUpgradeable(payable(routerAddress));
         bytes32 chainKey = bytes32("ETHEREUM_SEPOLIA");
         bytes32 protocolKey = bytes32("ETH_UNISWAP_V3");
         bytes32 keyHash = router.adapterKey(chainKey, protocolKey);

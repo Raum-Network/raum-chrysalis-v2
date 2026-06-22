@@ -14,7 +14,7 @@ contract DeployAaveOnly is Script {
         address aavePool = vm.envAddress("ETH_AAVE_POOL");
 
         vm.startBroadcast(key);
-        ArcIntentRouterUpgradeable router = ArcIntentRouterUpgradeable(routerAddress);
+        ArcIntentRouterUpgradeable router = ArcIntentRouterUpgradeable(payable(routerAddress));
         
         AaveV3Adapter aaveAdapter = new AaveV3Adapter(address(router), aavePool, admin);
         router.registerAdapter(bytes32("ETHEREUM_SEPOLIA"), bytes32("ETH_AAVE_V3"), address(aaveAdapter), true, "Aave V3 Ethereum Sepolia");

@@ -5,7 +5,7 @@ import {Script, console2} from "forge-std/Script.sol";
 import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 import {ArcIntentRouterUpgradeable} from "../src/routers/ArcIntentRouterUpgradeable.sol";
 import {UniswapV3Adapter} from "../src/adapters/UniswapV3Adapter.sol";
-import {AaveV3Adapter} from "../src/adapters/AaveV3Adapter.sol";
+import {AaveV3SwapDepositAdapter} from "../src/adapters/AaveV3SwapDepositAdapter.sol";
 import {MorphoBlueAdapter} from "../src/adapters/MorphoBlueAdapter.sol";
 import {NoopReceiptAdapter} from "../src/adapters/NoopReceiptAdapter.sol";
 
@@ -41,9 +41,9 @@ contract DeployDestination is Script {
             address uni = vm.envAddress("ETH_UNISWAP_SWAP_ROUTER_02");
             address aavePool = vm.envAddress("ETH_AAVE_POOL");
             UniswapV3Adapter uniAdapter = new UniswapV3Adapter(address(router), uni, keccak256("ETH_UNISWAP_V3_ADAPTER"), "Uniswap V3 Ethereum Sepolia", admin);
-            AaveV3Adapter aaveAdapter = new AaveV3Adapter(address(router), aavePool, admin);
+            AaveV3SwapDepositAdapter aaveAdapter = new AaveV3SwapDepositAdapter(address(router), uni, aavePool, admin);
             router.registerAdapter(bytes32("ETHEREUM_SEPOLIA"), bytes32("ETH_UNISWAP_V3"), address(uniAdapter), true, "Uniswap V3 Ethereum Sepolia");
-            router.registerAdapter(bytes32("ETHEREUM_SEPOLIA"), bytes32("ETH_AAVE_V3"), address(aaveAdapter), true, "Aave V3 Ethereum Sepolia");
+            router.registerAdapter(bytes32("ETHEREUM_SEPOLIA"), bytes32("ETH_AAVE_V3"), address(aaveAdapter), true, "Aave V3 Swap Deposit Ethereum Sepolia");
             console2.log("Uniswap adapter", address(uniAdapter));
             console2.log("Aave adapter", address(aaveAdapter));
         }

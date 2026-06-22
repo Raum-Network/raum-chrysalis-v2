@@ -15,7 +15,7 @@ contract DeployAaveSwapDeposit is Script {
         address aavePool = vm.envAddress("ETH_AAVE_POOL");
 
         vm.startBroadcast(key);
-        ArcIntentRouterUpgradeable router = ArcIntentRouterUpgradeable(routerAddress);
+        ArcIntentRouterUpgradeable router = ArcIntentRouterUpgradeable(payable(routerAddress));
         
         AaveV3SwapDepositAdapter adapter = new AaveV3SwapDepositAdapter(
             address(router),
