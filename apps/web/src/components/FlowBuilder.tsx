@@ -1838,8 +1838,8 @@ export default function FlowBuilder() {
       <AIAssistant
         connectedWallet={address}
         connectedChain={sourceChain}
-        solanaWallet={solanaAddress}
-        stellarWallet={stellarAddress}
+        solanaWallet={solanaAddress ?? undefined}
+        stellarWallet={stellarAddress ?? undefined}
         apiUrl={API_URL}
         onApplyIntent={applyIntent}
         onExecuteIntent={executeIntent}
