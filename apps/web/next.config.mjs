@@ -13,6 +13,7 @@ const nextConfig = {
     config.resolve = config.resolve ?? {};
     config.resolve.alias = {
       ...(config.resolve.alias ?? {}),
+      "@arc-os/sdk": path.join(repoRoot, "packages/sdk/dist/index.js"),
       "@noble/curves/ed25519": path.join(nobleCurvesV1, "esm/ed25519.js"),
       "@noble/curves/secp256k1": path.join(nobleCurvesV1, "esm/secp256k1.js"),
       "@noble/hashes/sha256": path.join(nobleHashesV1, "esm/sha256.js"),
@@ -29,4 +30,3 @@ const nextConfig = {
   }
 };
 export default nextConfig;
-
