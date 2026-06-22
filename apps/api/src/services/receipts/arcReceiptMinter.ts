@@ -222,6 +222,7 @@ export const arcReceiptMinter = new ArcReceiptMinter();
 function evmBeneficiaryForReceipt(receipt: IntentReceipt): Hex | undefined {
   const metadata = receipt.input.metadata ?? {};
   const candidates = [
+    metadata.evmReceiptWalletAddress,
     metadata.sourceWalletAddress,
     metadata.gatewayDepositor,
     metadata.evmAddress,

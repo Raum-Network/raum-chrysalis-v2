@@ -317,7 +317,22 @@ app.post("/intents/:id/retry-nft", async (req: any, res: any) => {
     return res.status(400).json({ error: `Cannot retry NFT for intent in status: ${receipt.status}` });
   }
 
-  const nftReceipt = await arcReceiptMinter.mint(receipt);
+  const metadata = { ...(receipt.input?.metadata ?? {}) };
+  if (typeof req.body?.evmReceiptWalletAddress === "string" && req.body.evmReceiptWalletAddress.length > 0) {
+    metadata.evmReceiptWalletAddress = req.body.evmReceiptWalletAddress;
+  }
+  if (typeof req.body?.sourceWalletAddress === "string" && req.body.sourceWalletAddress.length > 0) {
+    metadata.sourceWalletAddress = req.body.sourceWalletAddress;
+  }
+
+  const refreshedReceipt = store.update(receipt.id, {
+    input: {
+      ...receipt.input,
+      metadata
+    }
+  });
+
+  const nftReceipt = await arcReceiptMinter.mint(refreshedReceipt);
   const updated = store.update(receipt.id, { nftReceipt });
   res.json({ nftReceipt: updated.nftReceipt, receipt: updated });
 });

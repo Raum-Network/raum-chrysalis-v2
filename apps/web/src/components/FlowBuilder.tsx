@@ -527,7 +527,7 @@ export default function FlowBuilder() {
   const [sourceChain, setSourceChain] = useState("ARC");
   const [destinationChain, setDestinationChain] = useState("BASE_SEPOLIA");
   const [protocol, setProtocol] = useState("BASE_UNISWAP_V3");
-  const [amount, setAmount] = useState("1");
+  const [amount, setAmount] = useState("");
   const [action, setAction] = useState("supply");
   const [slippageBps, setSlippageBps] = useState("50");
   const [optimizationGoal, setOptimizationGoal] = useState("balanced");
@@ -624,6 +624,9 @@ export default function FlowBuilder() {
     : 0;
 
   const amountNumber = parseFloat(amount) || 0;
+  const hasEnteredAmount = amount.trim().length > 0 && amountNumber > 0;
+  const hasSourceWalletConnected = Boolean(sourceWalletAddress);
+  const canPreviewRoutes = hasSourceWalletConnected && hasEnteredAmount && Boolean(protocol);
   const selectedQuote = useMemo(() => {
     if (!quote?.selected) return null;
     const preferredAlternative = preferredRoute
@@ -722,6 +725,9 @@ export default function FlowBuilder() {
     () => protocolsForDestination.find((p) => p.key === protocol) ?? null,
     [protocolsForDestination, protocol]
   );
+  const protocolHeadline = selectedProtocolInfo
+    ? `${action === "swap" ? "Swap" : action === "supply" ? "Supply / Lend" : action === "withdraw" ? "Withdraw" : action === "borrow" ? "Borrow" : action === "repay" ? "Repay" : "Bridge & Transfer"}${selectedProtocolInfo.name ? ` · ${selectedProtocolInfo.name}` : ""}`
+    : "Select a protocol";
 
   const allowedActions = useMemo(() => {
     const type = selectedProtocolInfo?.type ?? "";
@@ -815,7 +821,7 @@ export default function FlowBuilder() {
   }
 
   useEffect(() => {
-    if (!protocol || amountNumber <= 0 || executionPhase !== "idle") return;
+    if (!canPreviewRoutes || executionPhase !== "idle") return;
     if (loading === "execute" || loading === "approve" || loading === "signing_nanopayment") return;
     const timeout = setTimeout(() => {
       if (lastAutoQuoteKeyRef.current === quoteRequestKey) return;
@@ -823,15 +829,21 @@ export default function FlowBuilder() {
       void loadRoutes(false);
     }, 650);
     return () => clearTimeout(timeout);
-  }, [quoteRequestKey, protocol, amountNumber, executionPhase]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [quoteRequestKey, canPreviewRoutes, executionPhase]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
-    if (!protocol || amountNumber <= 0 || executionPhase !== "idle") return;
+    if (!canPreviewRoutes || executionPhase !== "idle") return;
     const interval = setInterval(() => {
       if (loading === null || loading === "quote") void loadRoutes(false);
     }, 60_000);
     return () => clearInterval(interval);
-  }, [quoteRequestKey, protocol, amountNumber, executionPhase, loading]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [quoteRequestKey, canPreviewRoutes, executionPhase, loading]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (canPreviewRoutes || executionPhase !== "idle") return;
+    setQuote(null);
+    lastAutoQuoteKeyRef.current = "";
+  }, [canPreviewRoutes, executionPhase]);
 
   async function handleApprove() {
     if (!usdcAddress || !routerAddress || !address) return;
@@ -1327,7 +1339,11 @@ export default function FlowBuilder() {
     try {
       const res = await fetch(`${API_URL}/intents/${executionIntentId}/retry-nft`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" }
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          evmReceiptWalletAddress: address ?? undefined,
+          sourceWalletAddress: address ?? undefined
+        })
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Retry failed");
@@ -1358,7 +1374,7 @@ export default function FlowBuilder() {
   const showSolanaWalletBar = sourceVm === "svm" || destVm === "svm";
   const showStellarWalletBar = sourceVm === "soroban" || destVm === "soroban";
 
-  const panelOpen = loading === "quote" || Boolean(quote) || executionPhase !== "idle";
+  const panelOpen = executionPhase !== "idle" || (canPreviewRoutes && (loading === "quote" || Boolean(quote)));
 
   const swapTokens = CHAIN_SWAP_TOKENS[destinationChain] ?? [];
 
@@ -1437,6 +1453,7 @@ export default function FlowBuilder() {
     if (needsSolanaSourceWallet) return setError("Please connect your Solana wallet using the Connect Wallet button at the top left.");
     if (needsStellarSourceWallet) return setError("Please connect your Stellar wallet using the Connect Wallet button at the top left.");
     if (sourceVm === "evm" && (!isConnected || !address)) return setError("Connect your EVM wallet with RainbowKit to execute this route.");
+    if (!hasEnteredAmount) return setError("Enter an amount to see routes.");
     if (!selectedQuote) return getRoutes();
     if (onWrongChain) {
       if (sourceChainId) switchChain({ chainId: sourceChainId });
@@ -1458,7 +1475,8 @@ export default function FlowBuilder() {
     executionPhase === "completed" ? "Transaction Complete" :
     needsSolanaSourceWallet ? "Solana Wallet Not Connected" :
     needsStellarSourceWallet ? "Stellar Wallet Not Connected" :
-    sourceVm === "evm" && !isConnected ? "Connect Wallet to Execute" :
+    sourceVm === "evm" && !isConnected ? "Connect Wallet to See Routes" :
+    !hasEnteredAmount ? "Enter Amount" :
     !selectedQuote ? "Get Routes" :
     onWrongChain ? `Switch to ${CHAIN_SHORT[sourceChain] ?? sourceChain}` :
     needsSolanaReceiveWallet ? "Solana Wallet Not Connected" :
@@ -1475,7 +1493,7 @@ export default function FlowBuilder() {
       <section className="card widget">
 
         <div className="widget-header">
-          <h2>Swap &amp; Bridge</h2>
+          <h2>{protocolHeadline}</h2>
           <div className="widget-header-right">
             <div className="settings-wrap">
               <button type="button" className="settings-btn" onClick={() => setShowAdvanced(!showAdvanced)} title="Advanced">
@@ -1591,14 +1609,6 @@ export default function FlowBuilder() {
 
           {/* Action + destination + protocol */}
           <div className="input-block">
-            <div className="action-row">
-              <div className="select-wrap">
-                <select value={action} onChange={(e: any) => setAction(e.target.value)} className="action-select">
-                  {allowedActions.map((a) => <option key={a.value} value={a.value}>{a.label}</option>)}
-                </select>
-                <ChevronIcon />
-              </div>
-            </div>
             <div className="chain-row">
               <label>To</label>
               <div className="select-wrap">

@@ -2250,8 +2250,23 @@ h1 {
 .app-shell .nano-btn-pay,
 .app-shell .btn-primary {
   background: #e8000f;
+  background-image: none;
   color: #fff;
+  border: 1px solid #e8000f;
   border-radius: 12px;
+  box-shadow: none;
+}
+
+.app-shell .primary-btn:hover:not(:disabled),
+.app-shell .nano-btn-pay:hover:not(:disabled),
+.app-shell .btn-primary:hover:not(:disabled) {
+  background: #bf000b;
+  border-color: #bf000b;
+}
+
+.app-shell .action-buttons {
+  background: transparent;
+  backdrop-filter: none;
 }
 
 .app-shell .nano-btn-try,

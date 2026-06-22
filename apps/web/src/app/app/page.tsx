@@ -11,7 +11,6 @@ export default function AppPage() {
         <span aria-hidden="true" />
       </Link>
       <div className="app-wallet-topbar">
-        <span className="app-chain-pill">Arc Testnet</span>
         <AppWalletConnect />
       </div>
       <section className="hero">
