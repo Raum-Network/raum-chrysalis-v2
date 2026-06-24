@@ -1223,7 +1223,7 @@ export default function FlowBuilder() {
         if (!address || !connectedChainId) {
           setLoading(null);
           stopPolling();
-          return setError("The API requires an EVM relayer-fee signature. Connect an EVM wallet with RainbowKit and retry.");
+          return setError("This route requires an EVM relayer-fee signature. Connect an EVM wallet with RainbowKit and retry.");
         }
         const challengeHeader = res.headers.get("PAYMENT-REQUIRED");
         if (!challengeHeader) throw new Error("402 Response missing PAYMENT-REQUIRED header.");
@@ -1232,7 +1232,7 @@ export default function FlowBuilder() {
         if (!requirement) {
             setLoading(null);
             stopPolling();
-            return setError(`The API requires a $0.05 USDC relayer nanopayment, but your connected network (Chain ID: ${connectedChainId}) is not supported for x402 signatures. Switch to Arc Testnet, Base Sepolia, or Ethereum Sepolia.`);
+            return setError(`This route requires a $0.05 USDC relayer nanopayment, but your connected network (Chain ID: ${connectedChainId}) is not supported for x402 signatures. Switch to Arc Testnet, Base Sepolia, or Ethereum Sepolia.`);
         }
         setLoading("signing_nanopayment");
         try {
@@ -2262,7 +2262,7 @@ function ReceivePanel({ quote, sourceChain, destinationChain, protocolInfo, acti
                   {fq.assumptions && fq.assumptions.some((a: string) => a.includes("Circle Iris API")) && (
                     <div className="rpc-live-badge">
                       <span className="live-dot" />
-                      Bridge fee live from Circle API
+                      Bridge fee live from Circle
                     </div>
                   )}
                   {fq.warnings?.length > 0 && (

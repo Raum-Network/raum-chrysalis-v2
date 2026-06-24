@@ -191,8 +191,10 @@ export class ArcReceiptMinter {
       const feeLines = feeLine ? [feeLine] : [];
 
       // Extract tokenId from the ReceiptMinted event (first indexed topic = tokenId)
+      const RECEIPT_MINTED_TOPIC = "0x5eb3c1a7abb23aca502a8775a6458ad57ed5170dfceccfed60a5e61d6e77da57";
       const mintLog = txReceipt.logs.find((log) =>
-        log.address.toLowerCase() === contractAddress.toLowerCase()
+        log.address.toLowerCase() === contractAddress.toLowerCase() &&
+        log.topics?.[0] === RECEIPT_MINTED_TOPIC
       );
       const tokenIdHex = mintLog?.topics?.[1];
       const tokenId = tokenIdHex ? String(BigInt(tokenIdHex)) : String(existingTokenId);

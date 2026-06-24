@@ -237,7 +237,7 @@ export default function NanopaymentDemo() {
       const liveChallenge = challenge?.paymentRequired ? challenge : await fetchChallenge();
       const requirement = liveChallenge?.paymentRequired.accepts.find((item) => item.network === selectedChain.network);
       if (!liveChallenge || !requirement) {
-        throw new Error(`The API did not publish a Gateway x402 payment option for ${selectedChain.name}.`);
+        throw new Error(`Gateway x402 payment is not available for ${selectedChain.name} yet.`);
       }
 
       const typedData = buildGatewayPaymentAuth(address, requirement);
@@ -321,7 +321,7 @@ export default function NanopaymentDemo() {
       <div className="nano-flow-steps">
         <div className="nano-flow-step">
           <div className="nano-flow-num">1</div>
-          <div>Load live x402 payment requirements from the API</div>
+          <div>Load live x402 payment terms</div>
         </div>
         <div className="nano-flow-step">
           <div className="nano-flow-num">2</div>

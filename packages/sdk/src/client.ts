@@ -1,4 +1,4 @@
-import { AppConfig, CreateIntentRequest, GatewayBalanceResponse, GatewayPrepareResponse, IntentResponse, QuoteResponse } from "./types.js";
+import { AppConfig, CreateIntentRequest, GatewayBalanceResponse, GatewayPrepareResponse, IntentResponse, TransactionsResponse, QuoteResponse } from "./types.js";
 
 export class ArcOsClient {
   constructor(private readonly baseUrl = "http://localhost:8787") {}
@@ -32,6 +32,16 @@ export class ArcOsClient {
   async getIntent(id: string): Promise<IntentResponse> {
     const res = await fetch(`${this.baseUrl}/intents/${id}`);
     if (!res.ok) throw new Error(`getIntent failed: ${res.status} ${await res.text()}`);
+    return res.json();
+  }
+
+  async listTransactions(input: { owner?: string; limit?: number } = {}): Promise<TransactionsResponse> {
+    const params = new URLSearchParams();
+    if (input.owner) params.set("owner", input.owner);
+    if (input.limit) params.set("limit", String(input.limit));
+    const suffix = params.toString() ? `?${params.toString()}` : "";
+    const res = await fetch(`${this.baseUrl}/transactions${suffix}`);
+    if (!res.ok) throw new Error(`listTransactions failed: ${res.status} ${await res.text()}`);
     return res.json();
   }
 

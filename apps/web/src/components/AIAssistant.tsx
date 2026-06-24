@@ -43,7 +43,7 @@ export default function AIAssistant({
     {
       id: "welcome",
       sender: "assistant",
-      text: "Hi! I'm your Chrysalis V2 AI Assistant. Tell me what transaction you want to perform (e.g. 'swap 5 USDC on Base to WETH on Uniswap' or 'bridge 10 USDC from Base to Stellar') and I'll find the best route!",
+      text: "Hi! I'm your Chrysalis V2 AI Assistant. Tell me what transaction you want to perform (e.g. 'swap 5 USDC on Base to WETH on Uniswap' or 'bridge 10 USDC from Base to Stellar') and I'll find the best route.",
       time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
     }
   ]);
@@ -121,7 +121,7 @@ export default function AIAssistant({
       });
 
       if (!res.ok) {
-        throw new Error(`Chat API error: ${res.statusText}`);
+        throw new Error(`AI service error: ${res.statusText}`);
       }
 
       const data = await res.json();
@@ -163,7 +163,7 @@ export default function AIAssistant({
         {
           id: Math.random().toString(),
           sender: "assistant",
-          text: data.explanation || "I've decoded your intent. See details below:",
+          text: data.explanation || "I've decoded your route. See details below:",
           time: assistantTime,
           intent: data.intent,
           quote: data.quote
@@ -177,7 +177,7 @@ export default function AIAssistant({
         {
           id: Math.random().toString(),
           sender: "assistant",
-          text: "Sorry, I ran into an issue communicating with the AI service. Please make sure the API server is running and a GEMINI_API_KEY is configured.",
+          text: "Sorry, I ran into an issue communicating with the AI service. Please try again in a moment.",
           time: assistantTime
         }
       ]);
@@ -235,7 +235,7 @@ export default function AIAssistant({
         <div className="ai-chat-drawer">
           <div className="ai-chat-header">
             <h3>
-              AI Assistant <span>Gemini 3.5 Flash</span>
+              AI Assistant <span>Active</span>
             </h3>
             <button
               onClick={() => setIsOpen(false)}
@@ -260,7 +260,7 @@ export default function AIAssistant({
                   {msg.sender === "assistant" && msg.intent && (
                     <div className="ai-action-card">
                       <div className="ai-action-title">
-                        ✨ Decoded Transaction Plan
+                        Decoded Route Plan
                       </div>
                       <div className="ai-action-details">
                         <div className="ai-action-detail-row">
@@ -307,7 +307,7 @@ export default function AIAssistant({
                             setIsOpen(false);
                           }}
                           className="ai-action-btn secondary"
-                          title="Apply intent details to the form above"
+                          title="Load route details into the form above"
                         >
                           Load Form
                         </button>
@@ -317,7 +317,7 @@ export default function AIAssistant({
                             setIsOpen(false);
                           }}
                           className="ai-action-btn primary"
-                          title="Apply intent and immediately prompt execution"
+                          title="Load route and immediately prompt execution"
                         >
                           Confirm &amp; Execute
                         </button>

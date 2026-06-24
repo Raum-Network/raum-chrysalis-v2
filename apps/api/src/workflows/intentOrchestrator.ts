@@ -60,7 +60,7 @@ export class IntentOrchestrator {
     const parsed = createIntentSchema.parse(input) as ParsedIntent;
     const now = new Date().toISOString();
     const id = nanoid();
-    let receipt = store.create({ id, input: parsed, status: "created", createdAt: now, updatedAt: now });
+    let receipt = await store.create({ id, input: parsed, status: "created", createdAt: now, updatedAt: now });
 
     try {
       const analysis = await agentManager.analyze(parsed);
@@ -71,7 +71,7 @@ export class IntentOrchestrator {
         ? this.markPlanApproved(analysis.plan)
         : analysis.plan;
       const approvedAnalysis = { ...analysis, plan };
-      receipt = store.update(id, {
+      receipt = await store.update(id, {
         status: quoteOnly ? "quoted" : awaitingApproval || blockedByPolicy ? "needs_approval" : "planned",
         plan
       });
@@ -106,7 +106,7 @@ export class IntentOrchestrator {
 
   async runExecutionPipeline(id: string, analysis: any) {
     try {
-      let receipt = store.get(id);
+      let receipt = await store.get(id);
       if (!receipt) return;
 
       let sourceMetadataFeeLines: FeeLineItem[] = [];
@@ -114,7 +114,7 @@ export class IntentOrchestrator {
         sourceMetadataFeeLines = await this.collectSourceMetadataFeeLines(receipt);
       } catch (txErr) {
         console.error(`[Orchestrator] Error verifying source metadata transactions:`, txErr);
-        store.update(id, {
+        await store.update(id, {
           status: "failed",
           error: `Source transaction verification failed: ${txErr instanceof Error ? txErr.message : String(txErr)}`
         });
@@ -132,7 +132,7 @@ export class IntentOrchestrator {
       }
 
       let bridgeReceipt: any;
-      receipt = store.update(id, { status: "bridging" });
+      receipt = await store.update(id, { status: "bridging" });
       if (analysis.plan.routeKind === "LOCAL") {
         bridgeReceipt = { status: "skipped", reason: "Local route: no bridge step required." };
       } else if (analysis.plan.routeKind === "GATEWAY") {
@@ -163,7 +163,7 @@ export class IntentOrchestrator {
       if (bridgeFailed) {
         const reason = String(bridgeReceipt.reason ?? bridgeReceipt.stellarMessage ?? bridgeReceipt.solanaMessage ?? bridgeReceipt.message ?? "Bridge step failed.");
         console.error(`[Orchestrator] Bridge failed (${bridgeStatus}): ${reason}`);
-        store.update(id, {
+        await store.update(id, {
           bridgeReceipt,
           status: "failed",
           error: `Bridge failed: ${reason}`
@@ -202,7 +202,7 @@ export class IntentOrchestrator {
         }
       }
 
-      receipt = store.update(id, { bridgeReceipt, status: "executing" });
+      receipt = await store.update(id, { bridgeReceipt, status: "executing" });
       const actionPayload = {
         ...analysis.actionPayload,
         serviceAction: {
@@ -226,11 +226,11 @@ export class IntentOrchestrator {
         (protocolReceipt.executable === false && !protocolTxHash)
       ) {
         const msg = String(protocolReceipt.note ?? "Protocol execution was not submitted on-chain.");
-        store.update(id, { protocolReceipt, bridgeReceipt, status: "failed", error: msg });
+        await store.update(id, { protocolReceipt, bridgeReceipt, status: "failed", error: msg });
         return;
       }
 
-      receipt = store.update(id, { protocolReceipt, status: "finalizing" });
+      receipt = await store.update(id, { protocolReceipt, status: "finalizing" });
 
       // Mint on-chain receipt NFT on Arc Testnet (best-effort, but record the outcome before success).
       const nftReceipt = await arcReceiptMinter.mint(receipt);
@@ -239,7 +239,7 @@ export class IntentOrchestrator {
         ...this.feeLinesFrom(protocolReceipt),
         ...this.feeLinesFrom(nftReceipt)
       ];
-      receipt = store.update(id, {
+      receipt = await store.update(id, {
         nftReceipt,
         actualFeeLines,
         actualFeeUsd: sumFeeLinesUsd(actualFeeLines),
@@ -247,10 +247,10 @@ export class IntentOrchestrator {
       });
 
       const aiNarration = this.narrator.narrate(receipt);
-      store.update(id, { aiNarration });
+      await store.update(id, { aiNarration });
     } catch (err) {
       console.error(`[Orchestrator] Background execution failed:`, err);
-      store.update(id, { status: "failed", error: err instanceof Error ? err.message : String(err) });
+      await store.update(id, { status: "failed", error: err instanceof Error ? err.message : String(err) });
     }
   }
 

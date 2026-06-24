@@ -95,6 +95,7 @@ export interface RouteAlternative {
 export interface IntentResponse {
   id: string;
   status: string;
+  input?: CreateIntentRequest;
   plan?: Record<string, unknown> & {
     feeQuote?: FeeQuote;
     alternatives?: RouteAlternative[];
@@ -118,6 +119,34 @@ export interface IntentResponse {
   error?: string;
   createdAt?: string;
   updatedAt?: string;
+}
+
+export interface OnChainTransactionStatus {
+  label: string;
+  hash: string;
+  chain: string;
+  status: {
+    found: boolean;
+    confirmed: boolean;
+    finalized: boolean;
+    blockNumber?: string;
+    ledger?: number;
+    status?: string;
+    error?: unknown;
+  };
+}
+
+export interface TransactionResponse extends IntentResponse {
+  onChain?: {
+    checkedAt: string;
+    transactions: OnChainTransactionStatus[];
+  };
+}
+
+export interface TransactionsResponse {
+  source: string;
+  count: number;
+  transactions: TransactionResponse[];
 }
 
 export interface QuoteResponse {

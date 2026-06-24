@@ -20,6 +20,17 @@ const nextConfig = {
       "@noble/hashes/sha3": path.join(nobleHashesV1, "esm/sha3.js")
     };
 
+    config.module = config.module ?? {};
+    config.module.exprContextCritical = false;
+    config.infrastructureLogging = {
+      level: "error"
+    };
+    config.ignoreWarnings = [
+      ...(config.ignoreWarnings ?? []),
+      { module: /node_modules\/ox/ },
+      { message: /Critical dependency: the request of a dependency is an expression/ }
+    ];
+
     if (dev) {
       config.watchOptions = {
         ...config.watchOptions,

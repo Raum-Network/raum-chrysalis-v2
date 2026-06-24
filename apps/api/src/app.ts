@@ -1,10 +1,11 @@
 import express from "express";
 import cors from "cors";
 import { createGatewayMiddleware, type PaymentRequest } from "@circle-fin/x402-batching/server";
+import { Connection } from "@solana/web3.js";
 import { privateKeyToAccount } from "viem/accounts";
-import { type Hex } from "viem";
-import { Keypair as StellarKeypair } from "@stellar/stellar-sdk";
-import { env, chainConfig, protocolConfig, protocolGroupForChainKey, hasGatewayContracts, hasCctpEvmContracts } from "./config/index.js";
+import { createPublicClient, http, type Hex, isAddress, parseAbi, parseAbiItem } from "viem";
+import { Horizon, Keypair as StellarKeypair } from "@stellar/stellar-sdk";
+import { env, chainConfig, protocolConfig, protocolGroupForChainKey, hasGatewayContracts, hasCctpEvmContracts, findChainByKey } from "./config/index.js";
 import { loadSolanaKeypair } from "./utils/solanaKeys.js";
 import { intentOrchestrator, createIntentSchema } from "./workflows/intentOrchestrator.js";
 import { store } from "./store/memory.js";
@@ -17,6 +18,7 @@ import { liveQuoteService } from "./services/fees/liveQuoteService.js";
 import { arcReceiptMinter } from "./services/receipts/arcReceiptMinter.js";
 import { balanceMonitor } from "./services/monitoring/balanceMonitor.js";
 import { jsonReplacer } from "./utils/json.js";
+import type { IntentReceipt } from "./types.js";
 
 const app = express();
 const gateway = new GatewayService();
@@ -140,14 +142,247 @@ app.post("/intents", (req: any, res: any, next: any) => {
   res.status(receipt.status === "failed" ? 500 : 201).json(receipt);
 });
 
-app.get("/intents", (_req: any, res: any) => {
-  res.json(store.list());
+app.get("/intents", async (req: any, res: any) => {
+  res.json(await store.list({
+    owner: typeof req.query.owner === "string" ? req.query.owner : undefined,
+    limit: req.query.limit ? Number(req.query.limit) : undefined
+  }));
 });
 
-app.get("/intents/:id", (req: any, res: any) => {
-  const item = store.get(req.params.id);
+app.get("/intents/:id", async (req: any, res: any) => {
+  const item = await store.get(req.params.id);
   if (!item) return res.status(404).json({ error: "not found" });
   res.json(item);
+});
+
+async function fetchOnChainReceipts(ownerAddress: string): Promise<IntentReceipt[]> {
+  const contractAddress = process.env.ARC_RECEIPT_NFT_ADDRESS as Hex | undefined;
+  if (!contractAddress || !isAddress(contractAddress) || !ownerAddress) {
+    return [];
+  }
+
+  try {
+    const arcChain = findChainByKey("ARC");
+    const rpcUrl = process.env.ARC_RPC_URL ?? arcChain.rpcUrl;
+    const viemChain = {
+      id: arcChain.chainId,
+      name: arcChain.name,
+      nativeCurrency: arcChain.nativeCurrency ?? { name: "USDC", symbol: "USDC", decimals: 18 },
+      rpcUrls: { default: { http: [rpcUrl] } }
+    };
+    const publicClient = createPublicClient({ chain: viemChain, transport: http(rpcUrl) });
+
+    const contractAbi = parseAbi([
+      "function totalMinted() external view returns (uint256)",
+      "function receipts(uint256) external view returns (string, address, string, string, string, string, string, string, string, string, string, string, uint256)"
+    ]);
+
+    const total = await publicClient.readContract({
+      address: contractAddress,
+      abi: contractAbi,
+      functionName: "totalMinted"
+    }) as bigint;
+
+    const totalCount = Number(total);
+    if (totalCount === 0) return [];
+
+    // Scan up to the last 100 receipts for performance and RPC safety
+    const limitReceipts = 100;
+    const startTokenId = Math.max(1, totalCount - limitReceipts + 1);
+    const tokenIds = Array.from({ length: totalCount - startTokenId + 1 }, (_, i) => BigInt(startTokenId + i));
+
+    // Fetch details for all tokenIds in parallel
+    const details = await Promise.all(
+      tokenIds.map(async (tokenId) => {
+        try {
+          const r = await publicClient.readContract({
+            address: contractAddress,
+            abi: contractAbi,
+            functionName: "receipts",
+            args: [tokenId]
+          }) as any;
+          return { tokenId, r };
+        } catch (err) {
+          console.error(`[OnChainReceipts] Failed to fetch details for tokenId ${tokenId}:`, err);
+          return null;
+        }
+      })
+    );
+
+    const validDetails = details.filter((item): item is { tokenId: bigint; r: any } => item !== null);
+
+    // Split search needle into list of owners to match comma-separated queries
+    const needles = ownerAddress.split(",").map(o => o.trim().toLowerCase()).filter(Boolean);
+    if (needles.length === 0) return [];
+
+    const receiptsList: IntentReceipt[] = [];
+
+    for (const { tokenId, r } of validDetails) {
+      const [
+        intentId, beneficiary, sourceChain, destinationChain,
+        protocol, action, asset, amountIn, amountOut,
+        routeKind, txHash, destinationRecipient, mintedAt
+      ] = r;
+
+      // Check if beneficiary (EVM) or destinationRecipient (EVM/Solana/Stellar) matches any of our query needles
+      const isMatch = needles.some(needle => 
+        beneficiary.toLowerCase() === needle ||
+        destinationRecipient.toLowerCase() === needle
+      );
+
+      if (!isMatch) continue;
+
+      const isSolana = destinationChain === "SOLANA_DEVNET";
+      const isStellar = destinationChain === "STELLAR_TESTNET";
+
+      receiptsList.push({
+        id: intentId,
+        status: "succeeded",
+        createdAt: new Date(Number(mintedAt) * 1000).toISOString(),
+        updatedAt: new Date(Number(mintedAt) * 1000).toISOString(),
+        input: {
+          sourceChain,
+          destinationChain,
+          protocol,
+          action,
+          asset,
+          amount: amountIn,
+          recipient: destinationRecipient,
+          preferredRoute: routeKind,
+          metadata: {
+            sourceWalletAddress: beneficiary,
+            evmReceiptWalletAddress: beneficiary
+          }
+        },
+        protocolReceipt: {
+          status: "succeeded",
+          txHash: !isSolana && !isStellar ? txHash : undefined,
+          solanaTxHash: isSolana ? txHash : undefined,
+          stellarTxHash: isStellar ? txHash : undefined,
+          amountOutFormatted: amountOut,
+          tokenOutSymbol: asset
+        },
+        plan: {
+          routeKind,
+          sourceChain,
+          destinationChain,
+          protocol,
+          action,
+          amount: amountIn,
+          asset,
+          recipient: destinationRecipient,
+          requiresHumanApproval: false,
+          rationale: ["Restored from on-chain history."],
+          alternatives: [],
+          steps: []
+        },
+        nftReceipt: {
+          network: "ARC",
+          tokenId: String(tokenId),
+          contractAddress,
+          mintTxHash: txHash, // fallback to execution txHash
+          skipped: false
+        }
+      });
+    }
+
+    // Sort descending by date (newest first)
+    receiptsList.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+
+    return receiptsList;
+  } catch (err) {
+    console.error("[OnChainReceipts] Failed to fetch on-chain receipts:", err);
+    return [];
+  }
+}
+
+app.get("/transactions", async (req: any, res: any) => {
+  const owner = typeof req.query.owner === "string" ? req.query.owner : undefined;
+  const limit = req.query.limit ? Number(req.query.limit) : 50;
+
+  // 1. Fetch transactions from the local memory/postgres store
+  const storeItems = await store.list({ owner, limit });
+
+  // 2. Fetch on-chain minted receipts from Arc Testnet contract if owner is provided
+  let onChainItems: IntentReceipt[] = [];
+  if (owner) {
+    onChainItems = await fetchOnChainReceipts(owner);
+  }
+
+  // 3. Merge store items and on-chain items (keyed by intent ID to prevent duplicates)
+  const mergedMap = new Map<string, IntentReceipt>();
+  
+  // On-chain items are highly reliable for receipts, so add them first
+  for (const item of onChainItems) {
+    mergedMap.set(item.id, item);
+  }
+  
+  // Store items can overwrite/update them with full details if they match
+  for (const item of storeItems) {
+    const existing = mergedMap.get(item.id);
+    if (existing) {
+      // Merge: preserve on-chain nftReceipt if the store doesn't have it
+      mergedMap.set(item.id, {
+        ...existing,
+        ...item,
+        nftReceipt: item.nftReceipt ?? existing.nftReceipt
+      });
+    } else {
+      mergedMap.set(item.id, item);
+    }
+  }
+
+  const combined = Array.from(mergedMap.values())
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+    .slice(0, limit);
+
+  // We do NOT perform real-time RPC calls for the entire list to prevent 429 rate limits!
+  // Instead, we return the steps with default status immediately so they are rendering explorer links.
+  const transactions = combined.map((receipt) => {
+    const steps = txHashes(receipt).map((tx) => ({
+      ...tx,
+      status: {
+        found: false,
+        confirmed: false,
+        finalized: false
+      }
+    }));
+    return {
+      ...receipt,
+      onChain: {
+        checkedAt: new Date().toISOString(),
+        transactions: steps
+      }
+    };
+  });
+
+  res.json({
+    source: store.storageKind,
+    count: transactions.length,
+    transactions: transactions
+  });
+});
+
+app.get("/transactions/:id/status", async (req: any, res: any) => {
+  const { id } = req.params;
+  
+  // 1. Fetch transaction from store
+  let receipt = await store.get(id);
+  
+  // 2. Fallback search if not found directly
+  if (!receipt) {
+    const allItems = await store.list({ limit: 100 });
+    receipt = allItems.find((item) => item.id === id);
+  }
+  
+  // 3. Check on-chain receipts if not in store
+  if (!receipt) {
+    return res.status(404).json({ error: "Transaction not found" });
+  }
+
+  // 4. Enrich only this single transaction with on-chain status
+  const enriched = await enrichIntentWithOnChainStatus(receipt);
+  res.json(enriched);
 });
 
 app.post("/agents/analyze", async (req: any, res: any) => {
@@ -311,7 +546,7 @@ app.get("/circle/fees", async (_req: any, res: any) => {
  * Idempotent — checks on-chain `intentToToken` mapping first.
  */
 app.post("/intents/:id/retry-nft", async (req: any, res: any) => {
-  const receipt = store.get(req.params.id);
+  const receipt = await store.get(req.params.id);
   if (!receipt) return res.status(404).json({ error: "intent not found" });
   if (receipt.status !== "succeeded") {
     return res.status(400).json({ error: `Cannot retry NFT for intent in status: ${receipt.status}` });
@@ -325,7 +560,7 @@ app.post("/intents/:id/retry-nft", async (req: any, res: any) => {
     metadata.sourceWalletAddress = req.body.sourceWalletAddress;
   }
 
-  const refreshedReceipt = store.update(receipt.id, {
+  const refreshedReceipt = await store.update(receipt.id, {
     input: {
       ...receipt.input,
       metadata
@@ -333,9 +568,138 @@ app.post("/intents/:id/retry-nft", async (req: any, res: any) => {
   });
 
   const nftReceipt = await arcReceiptMinter.mint(refreshedReceipt);
-  const updated = store.update(receipt.id, { nftReceipt });
+  const updated = await store.update(receipt.id, { nftReceipt });
   res.json({ nftReceipt: updated.nftReceipt, receipt: updated });
 });
+
+function chainForTx(receipt: IntentReceipt, hash: string): string {
+  const protocol = receipt.protocolReceipt ?? {};
+  const bridge = receipt.bridgeReceipt ?? {};
+  if (hash === protocol.solanaTxHash || hash === bridge.solanaTxHash) return "SOLANA_DEVNET";
+  if (hash === protocol.stellarTxHash || hash === bridge.stellarTxHash) return "STELLAR_TESTNET";
+  if (hash === protocol.txHash || hash === bridge.mintTxHash) return receipt.input.destinationChain;
+  if (hash === receipt.nftReceipt?.mintTxHash) return "ARC";
+  return receipt.input.sourceChain;
+}
+
+function txHashes(receipt: IntentReceipt): Array<{ label: string; hash: string; chain: string }> {
+  const bridge = receipt.bridgeReceipt ?? {};
+  const protocol = receipt.protocolReceipt ?? {};
+  const metadata = receipt.input.metadata ?? {};
+  const entries = [
+    { label: "Gateway approve", hash: metadata.gatewayApproveTxHash },
+    { label: "Gateway deposit", hash: metadata.gatewayDepositTxHash },
+    { label: "User deposit", hash: metadata.userDepositTxHash },
+    { label: "Bridge", hash: bridge.txHash ?? bridge.burnTxHash ?? bridge.mintTxHash ?? bridge.solanaTxHash ?? bridge.stellarTxHash },
+    { label: "Protocol execution", hash: protocol.txHash ?? protocol.solanaTxHash ?? protocol.stellarTxHash },
+    { label: "Receipt NFT", hash: receipt.nftReceipt?.mintTxHash }
+  ]
+    .filter((item): item is { label: string; hash: string } => typeof item.hash === "string" && item.hash.length > 0)
+    .filter((item, index, all) => all.findIndex((candidate) => candidate.hash === item.hash) === index);
+  return entries.map((entry) => ({ ...entry, chain: chainForTx(receipt, entry.hash) }));
+}
+
+// In-memory cache for confirmed transaction statuses to eliminate duplicate RPC calls
+const txStatusCache = new Map<string, {
+  found: boolean;
+  confirmed: boolean;
+  finalized: boolean;
+  blockNumber?: string;
+  status?: any;
+  ledger?: any;
+  error: string | null;
+}>();
+
+async function enrichIntentWithOnChainStatus(receipt: IntentReceipt) {
+  const checks = [];
+  
+  // Fetch steps sequentially with a small delay for network hits to prevent 429 rate limits
+  for (const tx of txHashes(receipt)) {
+    const cacheKey = `${tx.chain}:${tx.hash}`;
+    const isCached = txStatusCache.has(cacheKey);
+    
+    const status = await lookupTxStatus(tx.chain, tx.hash);
+    checks.push({ ...tx, status });
+    
+    // If it was a real network query, add a small 150ms delay to throttle requests gracefully
+    if (!isCached) {
+      await new Promise((resolve) => setTimeout(resolve, 150));
+    }
+  }
+  
+  return {
+    ...receipt,
+    onChain: {
+      checkedAt: new Date().toISOString(),
+      transactions: checks
+    }
+  };
+}
+
+async function lookupTxStatus(chainKey: string, txHash: string) {
+  const cacheKey = `${chainKey}:${txHash}`;
+  if (txStatusCache.has(cacheKey)) {
+    return txStatusCache.get(cacheKey)!;
+  }
+
+  try {
+    const chain = findChainByKey(chainKey);
+    const rpc = process.env[chain.rpcEnv] ?? chain.rpcUrl;
+    let result;
+
+    if (chain.vm === "svm") {
+      const connection = new Connection(rpc, "confirmed");
+      const status = await connection.getSignatureStatus(txHash, { searchTransactionHistory: true });
+      result = {
+        found: Boolean(status.value),
+        confirmed: Boolean(status.value?.confirmationStatus === "confirmed" || status.value?.confirmationStatus === "finalized"),
+        finalized: status.value?.confirmationStatus === "finalized",
+        error: status.value?.err ? JSON.stringify(status.value.err) : null
+      };
+    } else if (chain.vm === "soroban") {
+      const server = new Horizon.Server("https://horizon-testnet.stellar.org");
+      const tx = await server.transactions().transaction(txHash).call();
+      result = {
+        found: true,
+        confirmed: Boolean(tx.successful),
+        finalized: Boolean(tx.successful),
+        ledger: tx.ledger_attr,
+        error: tx.successful ? null : "Stellar transaction failed"
+      };
+    } else {
+      const viemChain = {
+        id: chain.chainId,
+        name: chain.name,
+        nativeCurrency: chain.nativeCurrency ?? { name: "ETH", symbol: "ETH", decimals: 18 },
+        rpcUrls: { default: { http: [rpc] } }
+      };
+      const publicClient = createPublicClient({ chain: viemChain, transport: http(rpc) });
+      const tx = await publicClient.getTransactionReceipt({ hash: txHash as Hex });
+      result = {
+        found: true,
+        confirmed: true,
+        finalized: true,
+        blockNumber: tx.blockNumber.toString(),
+        status: tx.status,
+        error: tx.status === "success" ? null : "EVM transaction reverted"
+      };
+    }
+
+    // Cache confirmed or finalized statuses permanently to stop future RPC calls
+    if (result.confirmed) {
+      txStatusCache.set(cacheKey, result);
+    }
+    
+    return result;
+  } catch (err) {
+    return {
+      found: false,
+      confirmed: false,
+      finalized: false,
+      error: err instanceof Error ? err.message : String(err)
+    };
+  }
+}
 
 export function startBackgroundServices() {
   if (backgroundServicesStarted) return;
