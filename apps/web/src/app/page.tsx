@@ -26,7 +26,7 @@ const chains = [
   ["Base", "EVM / Sepolia / x402", "evm"],
   ["Ethereum", "EVM / Sepolia / x402", "evm"],
   ["Solana", "Non-EVM / Devnet / Receipt", "sol"],
-  ["Stellar", "Soroban / Testnet / Receipt", "stellar"]
+  ["Stellar", "Non-EVM / Testnet / Receipt", "stellar"]
 ];
 
 const protocols = [
@@ -40,6 +40,83 @@ const protocols = [
   ["Morpho Blue", "Lending / Base"],
   ["Aave V3", "Lending / Ethereum"]
 ];
+
+const getMarqueeIcon = (item: string): string | null => {
+  switch (item) {
+    case "CCTP V2":
+    case "Circle Gateway":
+    case "USDC Cross-Chain":
+      return "/icons/circle.svg";
+    case "x402 Protocol":
+    case "GatewayWalletBatched":
+    case "Payment-Signature":
+    case "Nanopayments":
+    case "Arc Testnet":
+      return "/icons/arc.png";
+    case "Base Sepolia":
+      return "/icons/base.png";
+    case "Ethereum Sepolia":
+      return "/icons/eth.svg";
+    case "Solana Devnet":
+      return "/icons/sol.svg";
+    case "Stellar Testnet":
+      return "/icons/stellar.svg";
+    case "Marinade":
+      return "/icons/marinade.png";
+    case "Raydium CPMM":
+      return "/icons/raydium.png";
+    case "Aquarius":
+      return "/icons/aquarius.png";
+    case "Aave":
+      return "/icons/aave.svg";
+    case "Morpho":
+      return "/icons/morpho.png";
+    case "Uniswap":
+      return "/icons/uniswap.svg";
+    default:
+      return null;
+  }
+};
+
+const getChainIcon = (name: string): string | null => {
+  switch (name) {
+    case "Arc":
+      return "/icons/arc.png";
+    case "Base":
+      return "/icons/base.png";
+    case "Ethereum":
+      return "/icons/eth.svg";
+    case "Solana":
+      return "/icons/sol.svg";
+    case "Stellar":
+      return "/icons/stellar.svg";
+    default:
+      return null;
+  }
+};
+
+const getProtocolIcons = (name: string): string[] => {
+  switch (name) {
+    case "USDC Transfer":
+    case "Circle Gateway":
+    case "CCTP V2":
+      return ["/icons/circle.svg"];
+    case "Gateway x402":
+      return ["/icons/arc.png"];
+    case "Marinade + Raydium":
+      return ["/icons/marinade.png", "/icons/raydium.png"];
+    case "Aquarius":
+      return ["/icons/aquarius.png"];
+    case "Uniswap V3":
+      return ["/icons/uniswap.svg"];
+    case "Morpho Blue":
+      return ["/icons/morpho.png"];
+    case "Aave V3":
+      return ["/icons/aave.svg"];
+    default:
+      return [];
+  }
+};
 
 const bridgeFeatures = [
   ["QUOTE", "Real-time", "Multi-provider quoting", "Chrysalis V2 compares Circle Gateway, CCTP V2, BridgeKit, and local routes. You see speed, cost, and security tradeoffs before committing a single token."],
@@ -192,7 +269,7 @@ export default function Page() {
 
       <section className="retro-hero retro-product-hero" id="top">
         <div className="retro-hero-copy">
-          <p>Arc Testnet / Circle Developer Grant</p>
+          <p></p>
           <div className="hero-butterfly-brand">
             <img src="/raumv2logo.png" alt="Chrysalis butterfly" className="hero-butterfly-img" />
             <h1>Chrysalis<span>V2</span></h1>
@@ -208,9 +285,15 @@ export default function Page() {
 
       <section className="retro-marquee" aria-label="Supported rails">
         <div>
-          {marquee.map((item, index) => (
-            <span key={`${item}-${index}`}>{item}</span>
-          ))}
+          {marquee.map((item, index) => {
+            const icon = getMarqueeIcon(item);
+            return (
+              <span key={`${item}-${index}`}>
+                {icon && <img src={icon} alt="" className="marquee-icon" />}
+                {item}
+              </span>
+            );
+          })}
         </div>
       </section>
 
@@ -257,12 +340,18 @@ export default function Page() {
             EVM chains carry Gateway x402 nanopayments; Solana and Stellar carry CCTP-backed transfer and protocol execution paths.
           </p>
           <div className="retro-chains">
-            {chains.map(([name, sub, kind]) => (
-              <article key={name} className={`chain-${kind}`}>
-                <h3>{name}</h3>
-                <p>{sub}</p>
-              </article>
-            ))}
+            {chains.map(([name, sub, kind]) => {
+              const icon = getChainIcon(name);
+              return (
+                <article key={name} className={`chain-${kind}`}>
+                  <div className="chain-title-wrap">
+                    {icon && <img src={icon} alt="" className="chain-logo" />}
+                    <h3>{name}</h3>
+                  </div>
+                  <p>{sub}</p>
+                </article>
+              );
+            })}
           </div>
           <p className="retro-note">Arc, Base, Ethereum, Solana, and Stellar all expose USDC transfer routes. Arc, Base, and Ethereum also support live Circle Gateway x402 signing.</p>
         </div>
@@ -321,12 +410,22 @@ export default function Page() {
             <strong>Only the wired surfaces.</strong> The frontend now shows the transfer rails and protocols Chrysalis V2 actually routes through.
           </p>
           <div className="retro-protocols">
-            {protocols.map(([name, type]) => (
-              <article key={name}>
-                <h3>{name}</h3>
-                <p>{type}</p>
-              </article>
-            ))}
+            {protocols.map(([name, type]) => {
+              const icons = getProtocolIcons(name);
+              return (
+                <article key={name}>
+                  <div className="protocol-title-wrap">
+                    <div className="protocol-logos">
+                      {icons.map((icon, idx) => (
+                        <img key={idx} src={icon} alt="" className="protocol-logo" />
+                      ))}
+                    </div>
+                    <h3>{name}</h3>
+                  </div>
+                  <p>{type}</p>
+                </article>
+              );
+            })}
           </div>
         </div>
       </section>
@@ -346,12 +445,10 @@ export default function Page() {
       </section>
 
       <footer className="retro-footer">
-        <p>Chrysalis V2 2026 / Arc Testnet / Circle Developer Grant</p>
+        <p>© 2021 - 2026 <a href="https://raum.network" target="_blank" rel="noopener noreferrer">Raum Network</a>. Revolutionizing DeFi. All rights reserved. </p>
         <ul>
-          <li><a href="#modes">Modes</a></li>
-          <li><a href="#chains">Chains</a></li>
-          <li><a href="#protocols">Protocols</a></li>
-          <li><a href="#nanopay">Nanopay</a></li>
+          <li><a href="https://github.com/raum-network" target="_blank" rel="noopener noreferrer">Github</a></li>
+          <li><a href="https://raum.network" target="_blank" rel="noopener noreferrer">RN Website</a></li>
         </ul>
       </footer>
     </main>

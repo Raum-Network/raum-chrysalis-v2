@@ -710,6 +710,12 @@ export default function FlowBuilder() {
   }, [lastWalletError]);
 
   useEffect(() => {
+    if (sourceChain === "ARC" && destinationChain === "ARC") {
+      setDestinationChain("BASE_SEPOLIA");
+    }
+  }, [sourceChain, destinationChain]);
+
+  useEffect(() => {
     if (!DISABLED_SOURCE_CHAIN_REASON[sourceChain]) return;
     const fallback = chains.find((chain) => !DISABLED_SOURCE_CHAIN_REASON[chain.key])?.key ?? "ARC";
     setSourceChain(fallback);
@@ -1591,8 +1597,8 @@ export default function FlowBuilder() {
               <div className="select-wrap">
                 <select value={sourceChain} onChange={(e: any) => setSourceChain(e.target.value)} className="minimal-select">
                   {chains.map((c) => (
-                    <option key={c.key} value={c.key} disabled={Boolean(DISABLED_SOURCE_CHAIN_REASON[c.key])}>
-                      {DISABLED_SOURCE_CHAIN_REASON[c.key] ? `${c.name} (source unavailable)` : c.name}
+                    <option key={c.key} value={c.key} disabled={Boolean(DISABLED_SOURCE_CHAIN_REASON[c.key]) || (destinationChain === "ARC" && c.key === "ARC")}>
+                      {DISABLED_SOURCE_CHAIN_REASON[c.key] ? `${c.name} (source unavailable)` : destinationChain === "ARC" && c.key === "ARC" ? `${c.name} (disabled for Arc-to-Arc)` : c.name}
                     </option>
                   ))}
                 </select>
@@ -1613,7 +1619,11 @@ export default function FlowBuilder() {
               <label>To</label>
               <div className="select-wrap">
                 <select value={destinationChain} onChange={(e: any) => setDestinationChain(e.target.value)} className="minimal-select">
-                  {chains.map((c) => <option key={c.key} value={c.key}>{c.name}</option>)}
+                  {chains.map((c) => (
+                    <option key={c.key} value={c.key} disabled={sourceChain === "ARC" && c.key === "ARC"}>
+                      {sourceChain === "ARC" && c.key === "ARC" ? `${c.name} (disabled for Arc-to-Arc)` : c.name}
+                    </option>
+                  ))}
                 </select>
                 <ChevronIcon />
               </div>
@@ -1639,6 +1649,16 @@ export default function FlowBuilder() {
 
           {/* ── Protocol-specific parameters ─────────────────────────── */}
           {selectedProtocolInfo && (
+            (isDexProtocol(selectedProtocolInfo.type) && action === "swap") ||
+            selectedProtocolInfo.key === "ETH_AAVE_V3" ||
+            selectedProtocolInfo.key === "BASE_MORPHO_BLUE" ||
+            selectedProtocolInfo.key === "SOL_MARINADE" ||
+            (isLendingProtocol(selectedProtocolInfo.type) &&
+             selectedProtocolInfo.key !== "ETH_AAVE_V3" &&
+             selectedProtocolInfo.key !== "BASE_MORPHO_BLUE" &&
+             selectedProtocolInfo.key !== "SOL_MARINADE") ||
+            selectedProtocolInfo.key === "ARC_GATEWAY"
+          ) && (
             <div className="protocol-params">
               {isDexProtocol(selectedProtocolInfo.type) && action === "swap" && (
                 <>

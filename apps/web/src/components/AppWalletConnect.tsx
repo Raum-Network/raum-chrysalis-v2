@@ -68,6 +68,9 @@ export default function AppWalletConnect() {
                       <strong>RainbowKit</strong>
                       <small>{isConnected && address ? truncateAddr(address) : "EVM wallets"}</small>
                     </span>
+                    <span className={`wallet-action-btn ${isConnected ? "connected" : ""}`}>
+                      {isConnected ? "Disconnect" : "Connect"}
+                    </span>
                   </button>
 
                   <button
@@ -87,6 +90,9 @@ export default function AppWalletConnect() {
                       <strong>Phantom</strong>
                       <small>{solanaConnecting ? "Connecting..." : solanaAddress ? truncateAddr(solanaAddress) : "Solana wallet"}</small>
                     </span>
+                    <span className={`wallet-action-btn ${solanaAddress ? "connected" : ""}`}>
+                      {solanaConnecting ? "Connecting..." : solanaAddress ? "Disconnect" : "Connect"}
+                    </span>
                   </button>
 
                   <button
@@ -105,6 +111,9 @@ export default function AppWalletConnect() {
                     <span>
                       <strong>Freighter</strong>
                       <small>{stellarConnecting ? "Connecting..." : stellarAddress ? truncateAddr(stellarAddress) : "Stellar wallet"}</small>
+                    </span>
+                    <span className={`wallet-action-btn ${stellarAddress ? "connected" : ""}`}>
+                      {stellarConnecting ? "Connecting..." : stellarAddress ? "Disconnect" : "Connect"}
                     </span>
                   </button>
                 </div>

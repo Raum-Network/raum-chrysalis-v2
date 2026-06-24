@@ -22,10 +22,10 @@ interface Message {
 }
 
 const SUGGESTIONS = [
-  "Swap 10 USDC on Base to WETH on Uniswap",
-  "Bridge 5 USDC from Ethereum to Solana",
-  "Stake 2 USDC on Solana into Marinade",
-  "Supply 1 USDC to Aave V3 on Ethereum"
+  "Swap 1 USDC on Base to WETH on Uniswap",
+  "Bridge 1 USDC from Ethereum to Solana",
+  "Stake 1 USDC on Solana into Marinade",
+  "Lend 1 USDC to Aave V3 on Ethereum"
 ];
 
 export default function AIAssistant({

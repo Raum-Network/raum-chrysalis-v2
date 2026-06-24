@@ -66,7 +66,7 @@ export class IntentStore {
   private readonly usePostgres = hasPostgresEnv();
 
   get storageKind() {
-    return this.usePostgres ? "vercel-postgres" : "memory";
+    return "Chrysalis V2";
   }
 
   private async ensureTable() {
@@ -109,9 +109,7 @@ export class IntentStore {
       WHERE id = ${id}
       LIMIT 1
     `;
-    const receipt = result.rows[0]?.receipt;
-    if (receipt) this.intents.set(id, receipt);
-    return receipt ?? this.intents.get(id);
+    return result.rows[0]?.receipt;
   }
 
   async update(id: string, patch: Partial<IntentReceipt>): Promise<IntentReceipt> {
@@ -142,6 +140,9 @@ export class IntentStore {
           SELECT receipt
           FROM chrysalis_transactions
           WHERE lower(owner) = ANY(${arrayLiteral}::text[])
+             OR lower(receipt->'input'->'metadata'->>'sourceWalletAddress') = ANY(${arrayLiteral}::text[])
+             OR lower(receipt->'input'->'metadata'->>'evmReceiptWalletAddress') = ANY(${arrayLiteral}::text[])
+             OR lower(receipt->'input'->>'recipient') = ANY(${arrayLiteral}::text[])
           ORDER BY updated_at DESC
           LIMIT ${limit}
         `;

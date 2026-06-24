@@ -4,7 +4,7 @@ import { DappShell, DashboardView } from "../../components/DappShell";
 
 export default function AppPage() {
   return (
-    <DappShell title="Dashboard" kicker="live dapp cockpit">
+    <DappShell title="Dashboard" >
       <DashboardView />
     </DappShell>
   );

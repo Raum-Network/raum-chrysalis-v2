@@ -3323,11 +3323,7 @@ h1 {
   --r-green: #20b486;
   --r-red: #f04438;
   min-height: 100vh;
-  background:
-    linear-gradient(90deg, rgba(22,21,28,.04) 1px, transparent 1px),
-    linear-gradient(rgba(22,21,28,.04) 1px, transparent 1px),
-    var(--r-paper);
-  background-size: 26px 26px;
+  background: var(--r-paper);
   color: var(--r-ink);
   font-family: 'Space Grotesk', sans-serif;
 }
@@ -3571,15 +3567,25 @@ h1 {
 }
 
 .retro-marquee span {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
   padding: 0 22px;
   font-family: 'IBM Plex Mono', monospace;
   font-size: 11px;
   white-space: nowrap;
 }
 
+.marquee-icon {
+  width: 16px;
+  height: 16px;
+  object-fit: contain;
+}
+
 .retro-section {
   padding: 72px clamp(20px, 5vw, 72px);
   border-bottom: 2px solid var(--r-line);
+  scroll-margin-top: 80px;
 }
 
 .retro-section h2 {
@@ -3739,6 +3745,54 @@ h1 {
   padding: 24px;
 }
 
+.chain-title-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.protocol-title-wrap {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.chain-title-wrap h3,
+.protocol-title-wrap h3 {
+  margin: 0;
+}
+
+.retro-chains h3 {
+  font-size: clamp(24px, 2.8vw, 38px);
+}
+
+.retro-protocols h3 {
+  font-size: clamp(26px, 2.8vw, 40px);
+}
+
+.chain-logo,
+.protocol-logo {
+  width: 32px;
+  height: 32px;
+  object-fit: contain;
+  border-radius: 4px;
+}
+
+.protocol-logos {
+  display: flex;
+  align-items: center;
+}
+
+.protocol-logos .protocol-logo:not(:first-child) {
+  margin-left: -12px;
+  border: 2px solid #fff;
+  border-radius: 50%;
+  background: #fff;
+}
+
 .chain-evm h3 { color: var(--r-blue); }
 .chain-sol h3 { color: #8b5cf6; }
 .chain-stellar h3 { color: var(--r-pink); }
@@ -3762,6 +3816,11 @@ h1 {
   grid-template-columns: minmax(270px, .34fr) 1fr;
   gap: 24px;
   padding: 26px;
+}
+
+.retro-features article,
+.retro-flow article {
+  align-items: center;
 }
 
 .retro-features h3 {
@@ -3803,6 +3862,12 @@ h1 {
   background: var(--r-blue);
   color: #fff;
   border-bottom: 2px solid var(--r-line);
+  scroll-margin-top: 80px;
+}
+
+.retro-closing .retro-btn {
+  display: inline-block;
+  margin-top: 28px;
 }
 
 .retro-closing > div {
@@ -3840,7 +3905,7 @@ h1 {
 
 .retro-footer p {
   margin: 0;
-  font-size: 11px;
+  font-size: 12px;
 }
 
 .retro-footer ul {
@@ -3854,6 +3919,11 @@ h1 {
 .retro-footer a {
   color: var(--r-ink);
   text-decoration: none;
+  font-size: 12px;
+}
+
+.retro-footer a:hover {
+  text-decoration: underline;
 }
 
 .chain-window {
@@ -4135,11 +4205,7 @@ h1 {
   min-height: 100vh;
   display: grid;
   grid-template-columns: 244px minmax(0, 1fr);
-  background:
-    linear-gradient(90deg, rgba(20,20,26,.035) 1px, transparent 1px),
-    linear-gradient(rgba(20,20,26,.035) 1px, transparent 1px),
-    var(--os-paper);
-  background-size: 24px 24px;
+  background: var(--os-paper);
   color: var(--os-ink);
   font-family: 'Space Grotesk', 'Outfit', sans-serif;
 }
@@ -4243,6 +4309,20 @@ h1 {
 .dapp-main {
   min-width: 0;
   padding: 24px;
+}
+
+@media (min-width: 981px) {
+  .dapp-os {
+    height: 100vh;
+    overflow: hidden;
+  }
+  .dapp-sidebar {
+    height: 100vh;
+  }
+  .dapp-main {
+    height: 100vh;
+    overflow-y: auto;
+  }
 }
 
 .dapp-topbar {
@@ -4597,7 +4677,9 @@ h1 {
 .dapp-os .execute-stage .flow-arrow,
 .dapp-os .execute-stage .select-wrap,
 .dapp-os .execute-stage .minimal-select,
-.dapp-os .execute-stage .token-badge {
+.dapp-os .execute-stage .token-badge,
+.dapp-os .execute-stage .param-select,
+.dapp-os .execute-stage .param-input {
   border-radius: 0;
 }
 
@@ -4615,6 +4697,16 @@ h1 {
   border: 2px solid rgba(20,20,26,.18);
   border-radius: 0;
   background: #fffdf7;
+}
+
+.dapp-os .execute-stage .param-select {
+  border: 0;
+  background: transparent;
+}
+
+.dapp-os .execute-stage .param-input {
+  border: 2px solid var(--os-line);
+  background: #fff;
 }
 
 .dapp-os .execute-stage .amount-input,
@@ -4699,6 +4791,39 @@ h1 {
   border-radius: 0;
   background: #fff;
   box-shadow: 3px 3px 0 var(--os-line);
+  grid-template-columns: 42px 1fr auto;
+}
+
+.wallet-action-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 28px;
+  padding: 4px 12px;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  border: 2px solid var(--os-line, #1b1b22);
+  background: #fff;
+  color: var(--os-ink, #14141a);
+  box-shadow: 2px 2px 0 var(--os-line, #1b1b22);
+  transition: all 0.1s ease;
+}
+
+.dapp-os .wallet-choice-option:hover .wallet-action-btn,
+.wallet-choice-option:hover .wallet-action-btn {
+  background: var(--os-yellow, #ffd24a);
+}
+
+.wallet-action-btn.connected {
+  background: #f04438;
+  color: #fff;
+}
+
+.dapp-os .wallet-choice-option:hover .wallet-action-btn.connected,
+.wallet-choice-option:hover .wallet-action-btn.connected {
+  background: #d9382e;
 }
 
 .dapp-os .wallet-choice-option:hover:not(:disabled),
@@ -4832,6 +4957,20 @@ h1 {
   background: #111318;
 }
 
+.dapp-os .ai-chat-chip {
+  background: #fff !important;
+  border: 2px solid var(--os-line) !important;
+  color: var(--os-ink) !important;
+  border-radius: 0 !important;
+  font-weight: 700 !important;
+  box-shadow: 2px 2px 0 var(--os-line) !important;
+}
+.dapp-os .ai-chat-chip:hover {
+  background: #e9ecff !important;
+  transform: translate(-1px, -1px) !important;
+  box-shadow: 3px 3px 0 var(--os-line) !important;
+}
+
 .ai-chat-input-area {
   border-top: 2px solid var(--os-line);
   background: #fffaf0;
@@ -4928,8 +5067,7 @@ h1 {
   text-transform: uppercase;
 }
 
-.dapp-os .execute-stage .advanced-popover input,
-.dapp-os .execute-stage .advanced-popover select {
+.dapp-os .execute-stage .advanced-popover input {
   border: 2px solid var(--os-line) !important;
   border-radius: 0 !important;
   background: #fff !important;
@@ -4938,6 +5076,20 @@ h1 {
   font-size: 13px !important;
   padding: 6px 8px !important;
   outline: none !important;
+}
+
+.dapp-os .execute-stage .advanced-popover select {
+  border: 2px solid var(--os-line) !important;
+  border-radius: 0 !important;
+  background: #fff url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%2314141a' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><polyline points='6 9 12 15 18 9'></polyline></svg>") no-repeat right 8px center !important;
+  background-size: 14px !important;
+  padding: 6px 28px 6px 8px !important;
+  color: var(--os-ink) !important;
+  font-family: inherit !important;
+  font-size: 13px !important;
+  outline: none !important;
+  -webkit-appearance: none !important;
+  appearance: none !important;
 }
 
 /* 3. Route selection panel & loading panel */

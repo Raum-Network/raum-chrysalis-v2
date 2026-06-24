@@ -246,7 +246,7 @@ export function useDappConfig() {
   return { config, error };
 }
 
-export function useTransactions(limit = 50) {
+export function useTransactions(limit = 50, requireConnection = false) {
   const { address } = useAccount();
   const { solanaAddress, stellarAddress } = useWalletConnections();
   const [data, setData] = useState<TransactionsResponse | null>(null);
@@ -254,12 +254,16 @@ export function useTransactions(limit = 50) {
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
+    const owners = [address, solanaAddress, stellarAddress].filter(Boolean).join(",");
+    if (!owners && requireConnection) {
+      setData({ source: "memory", count: 0, transactions: [] });
+      setLoading(false);
+      setError(null);
+      return;
+    }
     setLoading(true);
     setError(null);
     const params = new URLSearchParams({ limit: String(limit) });
-    
-    // Pass all connected wallets to retrieve unified history for EVM and non-EVM chains
-    const owners = [address, solanaAddress, stellarAddress].filter(Boolean).join(",");
     if (owners) params.set("owner", owners);
 
     try {
@@ -271,7 +275,7 @@ export function useTransactions(limit = 50) {
     } finally {
       setLoading(false);
     }
-  }, [address, solanaAddress, stellarAddress, limit]);
+  }, [address, solanaAddress, stellarAddress, limit, requireConnection]);
 
   useEffect(() => {
     void load();
@@ -284,6 +288,7 @@ export function useTransactions(limit = 50) {
 
 function BalanceCell({ chainId, label, address }: { chainId: number; label: string; address?: `0x${string}` }) {
   const { data, isLoading } = useReadContract({
+    chainId,
     address: USDC_ADDRESSES[chainId],
     abi: ERC20_ABI,
     functionName: "balanceOf",
@@ -300,10 +305,10 @@ function BalanceCell({ chainId, label, address }: { chainId: number; label: stri
   );
 }
 
-export function DappShell({ title, kicker, children }: { title: string; kicker: string; children: ReactNode }) {
+export function DappShell({ title, children }: { title: string; kicker?: string; children: ReactNode }) {
   const pathname = usePathname();
   const { isConnected } = useAccount();
-  const { data } = useTransactions(8);
+  const { data } = useTransactions(8, true);
   const activeCount = data?.transactions.filter((tx) => !["succeeded", "failed"].includes(tx.status ?? "")).length ?? 0;
 
   return (
@@ -314,14 +319,8 @@ export function DappShell({ title, kicker, children }: { title: string; kicker: 
         <div className="ambient-butterfly ab-6">
           <img src="/raumv2logo.png" className="flap-medium" alt="" />
         </div>
-        <div className="ambient-butterfly ab-8">
-          <img src="/raumv2logo.png" className="flap-slow" alt="" />
-        </div>
         <div className="ambient-butterfly ab-11">
           <img src="/raumv2logo.png" className="flap-fast" alt="" />
-        </div>
-        <div className="ambient-butterfly ab-14">
-          <img src="/raumv2logo.png" className="flap-slow" alt="" />
         </div>
         <div className="ambient-butterfly ab-17">
           <img src="/raumv2logo.png" className="flap-medium" alt="" />
@@ -352,7 +351,6 @@ export function DappShell({ title, kicker, children }: { title: string; kicker: 
       <section className="dapp-main">
         <header className="dapp-topbar">
           <div>
-            <p>{kicker}</p>
             <h1>{title}</h1>
           </div>
           <AppWalletConnect />
@@ -372,13 +370,19 @@ export function DashboardView() {
   const failed = txs.filter((tx) => tx.status === "failed").length;
   const active = txs.length - succeeded - failed;
 
+  const isConnected = Boolean(address);
+  const showRoutes = isConnected && !loading ? txs.length : "--";
+  const showActive = isConnected && !loading ? active : "--";
+  const showSucceeded = isConnected && !loading ? succeeded : "--";
+  const showFailed = isConnected && !loading ? failed : "--";
+
   return (
     <div className="dapp-stack">
       <section className="os-window hero-window">
         <div className="window-title"><span /><span /><span /><strong>live execution console</strong></div>
         <div className="dashboard-hero-grid">
           <div>
-            <p className="os-kicker">on-chain only</p>
+            {/* <p className="os-kicker">on-chain only</p> */}
             <h2>Bridge, execute, store receipts.</h2>
             <p className="os-copy">Dashboard shows supported chains, wallet balances, route activity, and receipt status from live network state. Empty means no route has been executed yet.</p>
             <div className="hero-actions-row">
@@ -390,31 +394,33 @@ export function DashboardView() {
             <p>$ chrysalis status</p>
             <span>service: {configError ? "error" : config ? "online" : "syncing"}</span>
             <span>chains: {config?.chains.length ?? "--"}</span>
-            <span>routes: {loading ? "--" : txs.length}</span>
+            <span>routes: {showRoutes}</span>
           </div>
         </div>
       </section>
 
       <section className="metric-grid">
-        <article className="os-card metric-card"><span>Routes</span><strong>{loading ? "--" : txs.length}</strong><small>cross-chain history</small></article>
-        <article className="os-card metric-card"><span>In Flight</span><strong>{loading ? "--" : active}</strong><small>pending or finalizing</small></article>
-        <article className="os-card metric-card"><span>Confirmed</span><strong>{loading ? "--" : succeeded}</strong><small>receipt ready</small></article>
-        <article className="os-card metric-card"><span>Needs Review</span><strong>{loading ? "--" : failed}</strong><small>failed route</small></article>
+        <article className="os-card metric-card"><span>Routes</span><strong>{showRoutes}</strong><small>cross-chain history</small></article>
+        <article className="os-card metric-card"><span>In Flight</span><strong>{showActive}</strong><small>pending or finalizing</small></article>
+        <article className="os-card metric-card"><span>Confirmed</span><strong>{showSucceeded}</strong><small>receipt ready</small></article>
+        <article className="os-card metric-card"><span>Needs Review</span><strong>{showFailed}</strong><small>failed route</small></article>
       </section>
 
-      <section className="balance-grid">
-        <BalanceCell chainId={arcTestnet.id} label="Arc" address={address as `0x${string}` | undefined} />
-        <BalanceCell chainId={baseSepolia.id} label="Base" address={address as `0x${string}` | undefined} />
-        <BalanceCell chainId={sepolia.id} label="Ethereum" address={address as `0x${string}` | undefined} />
-      </section>
+      {address && (
+        <section className="balance-grid">
+          <BalanceCell chainId={arcTestnet.id} label="Arc" address={address as `0x${string}` | undefined} />
+          <BalanceCell chainId={baseSepolia.id} label="Base" address={address as `0x${string}` | undefined} />
+          <BalanceCell chainId={sepolia.id} label="Ethereum" address={address as `0x${string}` | undefined} />
+        </section>
+      )}
 
-      <TransactionTable title="Recent transactions" transactions={txs.slice(0, 6)} loading={loading} error={error} />
+      <TransactionTable title="Recent transactions" transactions={txs.slice(0, 5)} loading={loading} error={error} allowDisconnected={true} />
     </div>
   );
 }
 
 export function TransactionsView({ receiptsOnly = false }: { receiptsOnly?: boolean }) {
-  const { data, loading, error, reload } = useTransactions(80);
+  const { data, loading, error, reload } = useTransactions(80, true);
   const txs = useMemo(() => {
     const items = data?.transactions ?? [];
     return receiptsOnly ? items.filter((tx) => tx.status === "succeeded" && tx.nftReceipt) : items;
@@ -426,7 +432,7 @@ export function TransactionsView({ receiptsOnly = false }: { receiptsOnly?: bool
         <div className="window-title"><span /><span /><span /><strong>{receiptsOnly ? "receipt archive" : "transaction history + chain checks"}</strong></div>
         <div className="section-head">
           <div>
-            <p className="os-kicker">live route history</p>
+            {/* <p className="os-kicker">live route history</p> */}
             <h2>{receiptsOnly ? "Receipt NFTs" : "Transactions"}</h2>
           </div>
           <button className="os-button" onClick={() => void reload()}>Refresh</button>
@@ -692,7 +698,11 @@ export function TerminalView() {
       case "transactions":
       case "tx": {
         const owners = [address, solanaAddress, stellarAddress].filter(Boolean).join(",");
-        await fetchPath(input, `/transactions?limit=20${owners ? `&owner=${owners}` : ""}`);
+        if (!owners) {
+          append(`$ ${input}\n\nconnect a wallet first, then run transactions again.`);
+          return;
+        }
+        await fetchPath(input, `/transactions?limit=20&owner=${owners}`);
         return;
       }
       case "health":
@@ -755,13 +765,15 @@ export function TerminalView() {
   );
 }
 
-function TransactionTable({ title, transactions, loading, error, receiptsOnly }: {
+function TransactionTable({ title, transactions, loading, error, receiptsOnly, allowDisconnected = false }: {
   title?: string;
   transactions: TransactionResponse[];
   loading: boolean;
   error: string | null;
   receiptsOnly?: boolean;
+  allowDisconnected?: boolean;
 }) {
+  const { isConnected } = useAccount();
   const [selectedTx, setSelectedTx] = useState<TransactionResponse | null>(null);
   const [enrichedTx, setEnrichedTx] = useState<TransactionResponse | null>(null);
   const [loadingStatus, setLoadingStatus] = useState(false);
@@ -806,7 +818,14 @@ function TransactionTable({ title, transactions, loading, error, receiptsOnly }:
       {title && <div className="window-title"><span /><span /><span /><strong>{title}</strong></div>}
       {error && <p className="os-error">{error}</p>}
       {loading && <p className="empty-state">Syncing live transactions...</p>}
-      {!loading && transactions.length === 0 && <p className="empty-state">No on-chain transaction records found.</p>}
+      {!loading && !isConnected && !allowDisconnected && (
+        <p className="empty-state">
+          {receiptsOnly
+            ? "Connect wallet to view your receipt NFTs."
+            : "Connect wallet to view transaction history."}
+        </p>
+      )}
+      {!loading && (isConnected || allowDisconnected) && transactions.length === 0 && <p className="empty-state">No on-chain transaction records found.</p>}
       {transactions.length > 0 && (
         <div className="tx-table">
           {transactions.map((tx) => {
