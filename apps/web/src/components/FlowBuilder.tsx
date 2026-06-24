@@ -526,6 +526,10 @@ export default function FlowBuilder() {
   const [config, setConfig] = useState<RuntimeAppConfig | null>(null);
   const [sourceChain, setSourceChain] = useState("ARC");
   const [destinationChain, setDestinationChain] = useState("BASE_SEPOLIA");
+
+  // Smart routing switch suggestions
+  const [suggestedSourceChain, setSuggestedSourceChain] = useState<string | null>(null);
+  const [suggestedSourceBalance, setSuggestedSourceBalance] = useState<number>(0);
   const [protocol, setProtocol] = useState("BASE_UNISWAP_V3");
   const [amount, setAmount] = useState("");
   const [action, setAction] = useState("supply");
@@ -594,6 +598,8 @@ export default function FlowBuilder() {
 
   // Source chain ID for this intent
   const sourceChainId = CHAIN_KEY_TO_ID[sourceChain];
+
+
   const usdcAddress = sourceChainId ? USDC_ADDRESSES[sourceChainId] : undefined;
   const routerAddress = sourceChainId ? ROUTER_ADDRESSES[sourceChainId] : undefined;
 
@@ -609,6 +615,52 @@ export default function FlowBuilder() {
   const usdcBalance = rawBalance !== undefined
     ? parseFloat(formatUnits(rawBalance as bigint, 6)).toFixed(2)
     : null;
+
+  async function checkUnifiedBalanceSuggestion(customAmount?: number) {
+    const amtNeeded = customAmount ?? (parseFloat(amount) || 0);
+    if (amtNeeded <= 0) return;
+
+    let suggestedChain: string | null = null;
+    let suggestedBal = 0;
+    try {
+      if (address) {
+        const res = await fetch(`${API_URL}/gateway/balances/${address}`);
+        if (res.ok) {
+          const data = await res.json();
+          if (data?.balances && Array.isArray(data.balances)) {
+            for (const bal of data.balances) {
+              const chainKey = bal.chain;
+              const amt = Number(bal.amount ?? bal.balance ?? 0);
+              if (chainKey !== sourceChain && amt >= amtNeeded) {
+                suggestedChain = chainKey;
+                suggestedBal = amt;
+                break;
+              }
+            }
+          }
+        }
+      }
+    } catch (err) {
+      console.error("Failed to fetch suggested chain balances:", err);
+    }
+
+    if (suggestedChain) {
+      setSuggestedSourceChain(suggestedChain);
+      setSuggestedSourceBalance(suggestedBal);
+    }
+  }
+
+  // Real-time unified balance suggestion trigger
+  useEffect(() => {
+    const amtNeeded = parseFloat(amount) || 0;
+    const currentBalNum = rawBalance !== undefined ? parseFloat(formatUnits(rawBalance as bigint, 6)) : 0;
+    if (isConnected && amtNeeded > currentBalNum) {
+      void checkUnifiedBalanceSuggestion(amtNeeded);
+    } else {
+      setSuggestedSourceChain(null);
+      setSuggestedSourceBalance(0);
+    }
+  }, [amount, sourceChain, rawBalance, isConnected, address]);
 
   // Read USDC allowance for router
   const { data: rawAllowance, refetch: refetchAllowance } = useReadContract({
@@ -714,6 +766,11 @@ export default function FlowBuilder() {
       setDestinationChain("BASE_SEPOLIA");
     }
   }, [sourceChain, destinationChain]);
+
+  useEffect(() => {
+    setSuggestedSourceChain(null);
+    setSuggestedSourceBalance(0);
+  }, [sourceChain, destinationChain, amount, protocol, action]);
 
   useEffect(() => {
     if (!DISABLED_SOURCE_CHAIN_REASON[sourceChain]) return;
@@ -1021,6 +1078,9 @@ export default function FlowBuilder() {
           const neededStr = (Number(totalAmountNeeded) / 1e6).toFixed(6);
           const currentStr = balanceToUse !== undefined ? (Number(balanceToUse) / 1e6).toFixed(6) : "0";
           setLoading(null);
+
+          void checkUnifiedBalanceSuggestion(Number(totalAmountNeeded) / 1e6);
+
           return setError(`Insufficient USDC balance on source chain. You need ${neededStr} USDC (transfer amount + fees), but you only have ${currentStr} USDC.`);
         }
       }
@@ -1050,6 +1110,9 @@ export default function FlowBuilder() {
           const currentStr = balanceToUse !== undefined ? (Number(balanceToUse) / 1e6).toFixed(6) : "0";
           const indexedStr = (Number(existingGatewayBalance) / 1e6).toFixed(6);
           setLoading(null);
+
+          void checkUnifiedBalanceSuggestion(Number(gatewayDepositDelta) / 1e6);
+
           return setError(`Insufficient USDC balance on source chain. Gateway needs ${neededStr} more USDC after using your indexed Gateway balance (${indexedStr} USDC), but you only have ${currentStr} USDC.`);
         }
 
@@ -1792,6 +1855,71 @@ export default function FlowBuilder() {
               </div>
             )}
           </div>
+
+          {suggestedSourceChain && (() => {
+            const fromChain = suggestedSourceChain;
+            const fromChainInfo = FALLBACK_CHAINS.find(c => c.key === fromChain);
+            const canUseGateway = fromChainInfo?.hasGateway;
+
+            return (
+              <div className="suggestion-banner">
+                <p>
+                  <strong>Unified Balance Tip:</strong> You don't have enough USDC on {CHAIN_SHORT[sourceChain] ?? sourceChain}, but you have <strong>{suggestedSourceBalance} USDC</strong> available in your unified balance on <strong>{CHAIN_SHORT[suggestedSourceChain] ?? suggestedSourceChain}</strong>!
+                </p>
+                <div style={{ display: "flex", flexDirection: "column", gap: "6px", marginTop: "8px" }}>
+                  <button
+                    type="button"
+                    className="os-button primary"
+                    style={{ width: "100%", textTransform: "none", fontSize: "12px", padding: "8px" }}
+                    onClick={() => {
+                      setSourceChain(suggestedSourceChain);
+                      setSuggestedSourceChain(null);
+                      setError(null);
+                    }}
+                  >
+                    Switch Source Chain to {CHAIN_SHORT[suggestedSourceChain] ?? suggestedSourceChain} &amp; Retry
+                  </button>
+                  {canUseGateway && (
+                    <button
+                      type="button"
+                      className="os-button"
+                      style={{ width: "100%", textTransform: "none", fontSize: "12px", padding: "8px" }}
+                      onClick={() => {
+                        setSourceChain(fromChain);
+                        setPreferredRoute("GATEWAY");
+                        setSuggestedSourceChain(null);
+                        setError(null);
+                      }}
+                    >
+                      Use Circle Gateway: Deposit from {CHAIN_SHORT[fromChain] ?? fromChain} &amp; Execute
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    className="os-button"
+                    style={{ width: "100%", textTransform: "none", fontSize: "12px", padding: "8px" }}
+                    onClick={() => {
+                      const targetChain = sourceChain; // e.g. BASE_SEPOLIA
+                      const suggestedBridgeProtocol = FALLBACK_PROTOCOLS[fromChain]?.find(
+                        p => p.type === "bridge_transfer" || p.category === "bridge"
+                      )?.key;
+
+                      if (suggestedBridgeProtocol) {
+                        setSourceChain(fromChain);
+                        setDestinationChain(targetChain);
+                        setProtocol(suggestedBridgeProtocol);
+                        setAction("transfer");
+                        setSuggestedSourceChain(null);
+                        setError(null);
+                      }
+                    }}
+                  >
+                    Bridge USDC from {CHAIN_SHORT[fromChain] ?? fromChain} to {CHAIN_SHORT[sourceChain] ?? sourceChain} First
+                  </button>
+                </div>
+              </div>
+            );
+          })()}
 
           {error && <p className="error-msg">{error}</p>}
 

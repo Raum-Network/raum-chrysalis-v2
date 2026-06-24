@@ -3357,8 +3357,8 @@ h1 {
 }
 
 .nav-logo-img {
-  height: 38px; /* Prominent size as requested */
-  width: auto;
+  width: clamp(38px, 5.6vw, 56px);
+  height: auto;
   image-rendering: pixelated;
   filter: drop-shadow(2px 2px 0 rgba(22, 21, 28, 0.15));
   display: block;
@@ -3372,7 +3372,7 @@ h1 {
 .retro-nav > div {
   display: flex;
   align-items: center;
-  gap: 14px;
+  gap: 28px;
   flex-wrap: wrap;
 }
 
@@ -3585,7 +3585,7 @@ h1 {
 .retro-section {
   padding: 72px clamp(20px, 5vw, 72px);
   border-bottom: 2px solid var(--r-line);
-  scroll-margin-top: 80px;
+  scroll-margin-top: 120px;
 }
 
 .retro-section h2 {
@@ -3773,6 +3773,10 @@ h1 {
   font-size: clamp(26px, 2.8vw, 40px);
 }
 
+.retro-protocols p {
+  text-align: center;
+}
+
 .chain-logo,
 .protocol-logo {
   width: 32px;
@@ -3862,7 +3866,7 @@ h1 {
   background: var(--r-blue);
   color: #fff;
   border-bottom: 2px solid var(--r-line);
-  scroll-margin-top: 80px;
+  scroll-margin-top: 120px;
 }
 
 .retro-closing .retro-btn {
@@ -6051,5 +6055,21 @@ h1 {
 .tx-link-item:active {
   transform: translate(0, 0);
   box-shadow: 1px 1px 0 rgba(22, 21, 28, 0.08);
+}
+
+.dapp-os .execute-stage .suggestion-banner {
+  border: 2px dashed var(--os-blue);
+  background: #fdfaf2;
+  border: 2px solid var(--os-line);
+  box-shadow: 3px 3px 0 var(--os-blue);
+  padding: 12px;
+  margin-bottom: 14px;
+  font-family: inherit;
+}
+.dapp-os .execute-stage .suggestion-banner p {
+  margin: 0;
+  font-size: 12px;
+  color: var(--os-ink);
+  line-height: 1.5;
 }
 

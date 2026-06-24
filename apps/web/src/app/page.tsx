@@ -47,12 +47,14 @@ const getMarqueeIcon = (item: string): string | null => {
     case "Circle Gateway":
     case "USDC Cross-Chain":
       return "/icons/circle.svg";
+    case "Arc Testnet":
+      return "/icons/arc.svg";
     case "x402 Protocol":
+      return "/icons/x402.svg";
     case "GatewayWalletBatched":
     case "Payment-Signature":
     case "Nanopayments":
-    case "Arc Testnet":
-      return "/icons/arc.png";
+      return "/icons/circle.svg";
     case "Base Sepolia":
       return "/icons/base.png";
     case "Ethereum Sepolia":
@@ -81,7 +83,7 @@ const getMarqueeIcon = (item: string): string | null => {
 const getChainIcon = (name: string): string | null => {
   switch (name) {
     case "Arc":
-      return "/icons/arc.png";
+      return "/icons/arc.svg";
     case "Base":
       return "/icons/base.png";
     case "Ethereum":
@@ -102,7 +104,7 @@ const getProtocolIcons = (name: string): string[] => {
     case "CCTP V2":
       return ["/icons/circle.svg"];
     case "Gateway x402":
-      return ["/icons/arc.png"];
+      return ["/icons/x402.svg"];
     case "Marinade + Raydium":
       return ["/icons/marinade.png", "/icons/raydium.png"];
     case "Aquarius":
@@ -165,7 +167,7 @@ function ChainHeroArt() {
       </div>
       <div className="coin-orbit">
         <span>USDC</span>
-        <span>402</span>
+        <span>x402</span>
         <span>NFT</span>
       </div>
     </div>

@@ -332,7 +332,7 @@ export function DappShell({ title, children }: { title: string; kicker?: string;
 
       <aside className="dapp-sidebar">
         <Link href="/" className="dapp-brand">
-          <img src="/raumv2logo.png" alt="Arc logo" />
+          <img src="/raumv2logo.png" alt="Chrysalis logo" />
           <strong>Chrysalis</strong>
           <small>V2</small>
         </Link>
@@ -406,13 +406,7 @@ export function DashboardView() {
         <article className="os-card metric-card"><span>Needs Review</span><strong>{showFailed}</strong><small>failed route</small></article>
       </section>
 
-      {address && (
-        <section className="balance-grid">
-          <BalanceCell chainId={arcTestnet.id} label="Arc" address={address as `0x${string}` | undefined} />
-          <BalanceCell chainId={baseSepolia.id} label="Base" address={address as `0x${string}` | undefined} />
-          <BalanceCell chainId={sepolia.id} label="Ethereum" address={address as `0x${string}` | undefined} />
-        </section>
-      )}
+
 
       <TransactionTable title="Recent transactions" transactions={txs.slice(0, 5)} loading={loading} error={error} allowDisconnected={true} />
     </div>
