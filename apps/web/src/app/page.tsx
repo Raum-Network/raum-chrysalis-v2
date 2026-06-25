@@ -1,4 +1,7 @@
+"use client";
+
 import Link from "next/link";
+import { useState, useEffect } from "react";
 
 const marqueeItems = [
   "CCTP V2",
@@ -176,9 +179,26 @@ function ChainHeroArt() {
 
 export default function Page() {
   const marquee = marqueeItems.concat(marqueeItems);
+  const [theme, setTheme] = useState("light");
+
+  // Load theme preference on mount
+  useEffect(() => {
+    const savedTheme = localStorage.getItem("chrysalis_theme");
+    if (savedTheme === "dark") {
+      setTheme("dark");
+    }
+  }, []);
+
+  const toggleTheme = () => {
+    setTheme((prev) => {
+      const next = prev === "light" ? "dark" : "light";
+      localStorage.setItem("chrysalis_theme", next);
+      return next;
+    });
+  };
 
   return (
-    <main className="retro-site">
+    <main className={`retro-site${theme === "dark" ? " dark" : ""}`}>
       {/* Ambient Metamorphosis Background */}
       <div className="ambient-metamorphosis-container" aria-hidden="true">
         {/* Ambient Random Translucent Butterflies flying across the whole website */}
@@ -265,6 +285,31 @@ export default function Page() {
           <a href="#chains">Chains</a>
           <a href="#protocols">Protocols</a>
           <a href="#nanopay">Nanopay</a>
+          <button
+            type="button"
+            onClick={toggleTheme}
+            style={{
+              background: theme === "dark" ? "#222235" : "#fff",
+              color: theme === "dark" ? "#ffd24a" : "#16151c",
+              border: "2px solid var(--r-line, #16151c)",
+              padding: "8px 12px",
+              fontSize: "12px",
+              fontWeight: "bold",
+              cursor: "pointer",
+              boxShadow: theme === "dark" ? "2px 2px 0 rgba(0,0,0,.4)" : "3px 3px 0 var(--r-line, #16151c)",
+              marginRight: "4px",
+              display: "inline-flex",
+              alignItems: "center",
+              justifyContent: "center",
+              minHeight: "36px",
+              minWidth: "36px",
+              fontFamily: "var(--os-font-mono, monospace)",
+              transition: "all 0.1s ease"
+            }}
+            title="Toggle Theme"
+          >
+            {theme === "dark" ? "🌙" : "☀️"}
+          </button>
           <Link href="/app" className="nav-cta">Open App</Link>
         </div>
       </nav>

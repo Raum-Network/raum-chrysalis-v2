@@ -311,24 +311,57 @@ export function DappShell({ title, children }: { title: string; kicker?: string;
   const { data } = useTransactions(8, true);
   const activeCount = data?.transactions.filter((tx) => !["succeeded", "failed"].includes(tx.status ?? "")).length ?? 0;
 
+  const [showButterflies, setShowButterflies] = useState(true);
+  const [theme, setTheme] = useState("light");
+
+  // Load preferences on mount
+  useEffect(() => {
+    const savedButterflies = localStorage.getItem("chrysalis_show_butterflies");
+    if (savedButterflies === "false") {
+      setShowButterflies(false);
+    }
+    const savedTheme = localStorage.getItem("chrysalis_theme");
+    if (savedTheme === "dark") {
+      setTheme("dark");
+    }
+  }, []);
+
+  const toggleButterflies = () => {
+    setShowButterflies((prev) => {
+      const next = !prev;
+      localStorage.setItem("chrysalis_show_butterflies", String(next));
+      return next;
+    });
+  };
+
+  const toggleTheme = () => {
+    setTheme((prev) => {
+      const next = prev === "light" ? "dark" : "light";
+      localStorage.setItem("chrysalis_theme", next);
+      return next;
+    });
+  };
+
   return (
-    <main className="dapp-os">
+    <main className={`dapp-os${theme === "dark" ? " dark" : ""}`}>
       {/* Ambient Metamorphosis Background */}
-      <div className="ambient-metamorphosis-container" aria-hidden="true">
-        {/* Ambient Random Translucent Butterflies flying across the application */}
-        <div className="ambient-butterfly ab-6">
-          <img src="/raumv2logo.png" className="flap-medium" alt="" />
+      {showButterflies && (
+        <div className="ambient-metamorphosis-container" aria-hidden="true">
+          {/* Ambient Random Translucent Butterflies flying across the application */}
+          <div className="ambient-butterfly ab-6">
+            <img src="/raumv2logo.png" className="flap-medium" alt="" />
+          </div>
+          <div className="ambient-butterfly ab-11">
+            <img src="/raumv2logo.png" className="flap-fast" alt="" />
+          </div>
+          <div className="ambient-butterfly ab-17">
+            <img src="/raumv2logo.png" className="flap-medium" alt="" />
+          </div>
+          <div className="ambient-butterfly ab-20">
+            <img src="/raumv2logo.png" className="flap-slow" alt="" />
+          </div>
         </div>
-        <div className="ambient-butterfly ab-11">
-          <img src="/raumv2logo.png" className="flap-fast" alt="" />
-        </div>
-        <div className="ambient-butterfly ab-17">
-          <img src="/raumv2logo.png" className="flap-medium" alt="" />
-        </div>
-        <div className="ambient-butterfly ab-20">
-          <img src="/raumv2logo.png" className="flap-slow" alt="" />
-        </div>
-      </div>
+      )}
 
       <aside className="dapp-sidebar">
         <Link href="/" className="dapp-brand">
@@ -343,6 +376,29 @@ export function DappShell({ title, children }: { title: string; kicker?: string;
           })}
         </nav>
         <div className="sidebar-terminal">
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
+            <span>butterflies</span>
+            <button
+              type="button"
+              onClick={toggleButterflies}
+              style={{
+                background: showButterflies ? "var(--os-blue, #2d6cdf)" : "var(--os-window, #fff)",
+                color: showButterflies ? "#fff" : "var(--os-ink, #16151c)",
+                border: "2px solid var(--os-line, #16151c)",
+                padding: "2px 8px",
+                fontSize: "10px",
+                fontFamily: "var(--os-font-mono, monospace)",
+                fontWeight: "bold",
+                cursor: "pointer",
+                boxShadow: showButterflies ? "1px 1px 0 var(--os-line, #16151c)" : "2px 2px 0 var(--os-line, #16151c)",
+                transform: showButterflies ? "translate(1px, 1px)" : "none",
+                transition: "all 0.1s ease"
+              }}
+            >
+              {showButterflies ? "ON" : "OFF"}
+            </button>
+          </div>
+          <div style={{ borderTop: "1px dashed var(--os-line, #16151c)", opacity: 0.3, margin: "6px 0" }} />
           <span>system</span>
           <strong>{isConnected ? "wallet linked" : "wallet offline"}</strong>
           <small>{activeCount} active routes</small>
@@ -353,7 +409,33 @@ export function DappShell({ title, children }: { title: string; kicker?: string;
           <div>
             <h1>{title}</h1>
           </div>
-          <AppWalletConnect />
+          <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+            <button
+              type="button"
+              onClick={toggleTheme}
+              className="os-button"
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "6px",
+                padding: "4px 10px",
+                fontSize: "11px",
+                fontWeight: "bold",
+                cursor: "pointer",
+                background: theme === "dark" ? "#222235" : "#fff",
+                color: theme === "dark" ? "#ffd24a" : "#16151c",
+                border: "2px solid var(--os-line)",
+                minHeight: "36px",
+                boxShadow: theme === "dark" ? "2px 2px 0 rgba(0,0,0,.4)" : "3px 3px 0 var(--os-line)",
+                transform: theme === "dark" ? "translate(1px, 1px)" : "none",
+                transition: "all 0.1s ease"
+              }}
+              title="Toggle Theme"
+            >
+              {theme === "dark" ? "🌙" : "☀️"}
+            </button>
+            <AppWalletConnect />
+          </div>
         </header>
         {children}
       </section>

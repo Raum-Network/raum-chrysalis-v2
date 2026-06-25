@@ -3817,9 +3817,16 @@ h1 {
 .retro-features article,
 .retro-flow article {
   display: grid;
-  grid-template-columns: minmax(270px, .34fr) 1fr;
   gap: 24px;
   padding: 26px;
+}
+
+.retro-features article {
+  grid-template-columns: minmax(270px, .34fr) 1fr;
+}
+
+.retro-flow article {
+  grid-template-columns: auto 1fr;
 }
 
 .retro-features article,
@@ -6072,4 +6079,464 @@ h1 {
   color: var(--os-ink);
   line-height: 1.5;
 }
+
+/* ── Dark Mode Overrides for Retro Dapp OS ──────────────────────── */
+.dapp-os.dark {
+  --os-ink: #f0f0f7;
+  --os-muted: #a1a1b5;
+  --os-line: #46465e;
+  --os-paper: #12121e;
+  --os-window: #1e1e2f;
+  --os-blue: #5c8df5;
+  --os-pink: #ff7fae;
+  --os-yellow: #ffe066;
+  --os-green: #3cd4a0;
+  --os-red: #ff6e63;
+}
+
+/* Sidebar, topbar and window titles */
+.dapp-os.dark .dapp-sidebar {
+  background: #191926;
+  border-right: 2px solid var(--os-line);
+}
+.dapp-os.dark .dapp-topbar {
+  background: #191926;
+  border-color: var(--os-line);
+  box-shadow: 5px 5px 0 rgba(0,0,0,.4);
+}
+.dapp-os.dark .window-title {
+  background: #252538;
+  border-bottom: 2px solid var(--os-line);
+}
+
+/* Form wrap and button controls */
+.dapp-os.dark .execute-stage .settings-btn,
+.dapp-os.dark .execute-stage .flow-arrow,
+.dapp-os.dark .execute-stage .select-wrap {
+  background: #1c1c2b;
+  border-color: var(--os-line);
+  box-shadow: 3px 3px 0 rgba(0,0,0,.4);
+}
+
+.dapp-os.dark .execute-stage .input-block,
+.dapp-os.dark .execute-stage .protocol-params,
+.dapp-os.dark .execute-stage .cctp-note {
+  border-color: var(--os-line);
+  background: #171724;
+}
+
+.dapp-os.dark .execute-stage .param-input {
+  background: #1c1c2b;
+  border-color: var(--os-line);
+  color: var(--os-ink);
+}
+
+/* Retro buttons shadow and text visibility */
+.dapp-os.dark .os-button,
+.dapp-os.dark .btn-primary,
+.dapp-os.dark .dapp-brand {
+  box-shadow: 4px 4px 0 var(--os-line);
+}
+.dapp-os.dark .os-button.primary,
+.dapp-os.dark .btn-primary {
+  box-shadow: 4px 4px 0 rgba(0, 0, 0, 0.4);
+}
+
+/* Table rows */
+.dapp-os.dark .tx-row {
+  border-top: 2px solid rgba(255, 255, 255, .12);
+}
+
+/* Route panel, loading, and tracker */
+.dapp-os.dark .route-panel,
+.dapp-os.dark .tracker-window,
+.dapp-os.dark .loading-panel {
+  background: var(--os-window);
+  border-left: 2px solid var(--os-line);
+}
+
+/* Text area / Console / Terminal */
+.dapp-os.dark .terminal-console,
+.dapp-os.dark .sidebar-terminal,
+.dapp-os.dark .terminal-mini {
+  background: #101019;
+  border-color: var(--os-line);
+}
+
+/* Suggestion banner */
+.dapp-os.dark .execute-stage .suggestion-banner {
+  background: #222235;
+  border-color: var(--os-line);
+  box-shadow: 3px 3px 0 var(--os-blue);
+}
+
+/* Dropdown styling / settings modal in Safari/Chrome */
+.dapp-os.dark select,
+.dapp-os.dark input {
+  background-color: #1c1c2b;
+  color: var(--os-ink);
+}
+.dapp-os.dark select option {
+  background-color: #1c1c2b;
+  color: var(--os-ink);
+}
+
+/* Empty transactions/receipts box */
+.dapp-os.dark .empty-state {
+  background: #101019 !important;
+  border-color: var(--os-line) !important;
+}
+
+.dapp-os.dark .os-error {
+  background: #2b1818 !important;
+  color: var(--os-red) !important;
+  border-top: 2px solid var(--os-line) !important;
+}
+
+/* ── Homepage Landing Page Dark Theme ──────────────────────── */
+.retro-site.dark {
+  --r-ink: #f0f0f7;
+  --r-line: #46465e;
+  --r-paper: #0c0c12;
+  --r-blue: #5c8df5;
+  --r-pink: #ff7fae;
+  --r-yellow: #ffe066;
+  --r-green: #3cd4a0;
+  --r-red: #ff6e63;
+  background: var(--r-paper) !important;
+  color: var(--r-ink) !important;
+}
+
+.retro-site.dark .retro-nav {
+  background: rgba(12, 12, 18, 0.88) !important;
+  border-bottom: 2px solid var(--r-line) !important;
+}
+
+.retro-site.dark .retro-nav a {
+  color: var(--r-ink) !important;
+}
+
+.retro-site.dark .retro-btn {
+  background: #1c1c2b !important;
+  color: var(--r-ink) !important;
+  border-color: var(--r-line) !important;
+  box-shadow: 4px 4px 0 var(--r-line) !important;
+}
+
+.retro-site.dark .retro-btn.primary {
+  background: var(--r-blue) !important;
+  color: #fff !important;
+}
+
+.retro-site.dark .retro-window,
+.retro-site.dark .retro-feature,
+.retro-site.dark .chain-window,
+.retro-site.dark .mini-window {
+  background: #1c1c2b !important;
+  border-color: var(--r-line) !important;
+  color: var(--r-ink) !important;
+  box-shadow: 5px 5px 0 rgba(0, 0, 0, 0.4) !important;
+}
+
+.retro-site.dark .retro-title {
+  background: #252538 !important;
+  border-bottom: 2px solid var(--r-line) !important;
+  color: #a1a1b5 !important;
+}
+
+.retro-site.dark .mini-window div {
+  border-bottom-color: var(--r-line) !important;
+}
+
+.retro-site.dark .mini-window span {
+  color: #a1a1b5 !important;
+}
+
+.retro-site.dark .retro-marquee {
+  background: #12121e !important;
+  border-color: var(--r-line) !important;
+}
+
+.retro-site.dark .retro-modes article,
+.retro-site.dark .retro-chains article,
+.retro-site.dark .retro-protocols article,
+.retro-site.dark .retro-features article,
+.retro-site.dark .retro-flow article {
+  background: #1c1c2b !important;
+  border-color: var(--r-line) !important;
+  box-shadow: 5px 5px 0 rgba(0, 0, 0, 0.4) !important;
+}
+
+.retro-site.dark .retro-modes p,
+.retro-site.dark .retro-features p,
+.retro-site.dark .retro-flow p,
+.retro-site.dark .retro-protocols p,
+.retro-site.dark .retro-chains p,
+.retro-site.dark .retro-closing p {
+  color: #a1a1b5 !important;
+}
+
+.retro-site.dark .retro-modes small {
+  background: #322f18 !important;
+  color: var(--r-yellow) !important;
+  border-color: var(--r-line) !important;
+}
+
+.retro-site.dark .retro-quote small {
+  color: #a1a1b5 !important;
+}
+
+.retro-site.dark .retro-note {
+  color: #888899 !important;
+}
+
+.retro-site.dark .retro-flow strong {
+  background: #2b2818 !important;
+  border-color: var(--r-line) !important;
+  box-shadow: 4px 4px 0 var(--r-line) !important;
+  color: var(--r-yellow) !important;
+}
+
+.retro-site.dark .retro-footer {
+  background: #0c0c12 !important;
+  border-top: 2px solid var(--r-line) !important;
+  color: #a1a1b5 !important;
+}
+
+.retro-site.dark .retro-footer a {
+  color: var(--r-ink) !important;
+}
+
+.retro-site.dark .protocol-logos .protocol-logo:not(:first-child) {
+  border-color: #1c1c2b !important;
+  background: #1c1c2b !important;
+}
+
+.retro-site.dark .retro-hero-copy span,
+.retro-site.dark .retro-section > p,
+.retro-site.dark .retro-feature p,
+.retro-site.dark .tx-window small {
+  color: #a1a1b5 !important;
+}
+
+/* ── Sidebar active/hover item contrast override ───────────────────────── */
+.dapp-os.dark .dapp-nav a.active,
+.dapp-os.dark .dapp-nav a:hover {
+  color: #14141a !important;
+}
+
+/* ── Standard buttons background override in Dark Mode ──────────────────── */
+.dapp-os.dark .os-button:not(.primary) {
+  background: #1c1c2b !important;
+  color: var(--os-ink) !important;
+  border-color: var(--os-line) !important;
+}
+
+/* ── Modals and Popovers in Dark Mode ───────────────────────────── */
+.dapp-os.dark .execute-stage .advanced-popover {
+  background: var(--os-window) !important;
+  border-color: var(--os-line) !important;
+  box-shadow: 5px 5px 0 rgba(0,0,0,.4) !important;
+}
+
+.dapp-os.dark .execute-stage .advanced-popover input,
+.dapp-os.dark .execute-stage .advanced-popover select {
+  background-color: var(--os-paper) !important;
+  color: var(--os-ink) !important;
+  border-color: var(--os-line) !important;
+}
+
+.dapp-os.dark .execute-stage .advanced-popover select {
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%23f0f0f7' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><polyline points='6 9 12 15 18 9'></polyline></svg>") !important;
+}
+
+/* Route Selection Panel (rp-panel) */
+.dapp-os.dark .execute-stage .rp-panel {
+  background: var(--os-window) !important;
+  border-color: var(--os-line) !important;
+  box-shadow: 6px 6px 0 rgba(0,0,0,.4) !important;
+}
+
+.dapp-os.dark .execute-stage .rp-close {
+  background: var(--os-paper) !important;
+  color: var(--os-ink) !important;
+  border-color: var(--os-line) !important;
+  box-shadow: 2px 2px 0 var(--os-line) !important;
+}
+
+.dapp-os.dark .execute-stage .rp-close:hover {
+  background: var(--os-window) !important;
+}
+
+.dapp-os.dark .execute-stage .rp-card,
+.dapp-os.dark .execute-stage .route-loading-card {
+  background: #171724 !important;
+  border-color: var(--os-line) !important;
+  box-shadow: 3px 3px 0 var(--os-line) !important;
+}
+
+.dapp-os.dark .execute-stage .rp-card--open {
+  background: #1c1c2b !important;
+}
+
+.dapp-os.dark .execute-stage .rp-card--selected {
+  background: #2b2818 !important;
+}
+
+.dapp-os.dark .execute-stage .rpc-badge {
+  background: var(--os-paper) !important;
+  border-color: var(--os-line) !important;
+  color: var(--os-ink) !important;
+}
+
+.dapp-os.dark .execute-stage .rpc-select-route:disabled {
+  background: #20202d !important;
+  color: var(--os-muted) !important;
+  border-color: var(--os-line) !important;
+}
+
+.dapp-os.dark .execute-stage .rps-dot {
+  background: var(--os-paper) !important;
+  border-color: var(--os-line) !important;
+  color: var(--os-ink) !important;
+}
+
+/* Transaction Progress Tracker (tx-tracker) */
+.dapp-os.dark .execute-stage .tx-tracker {
+  background: var(--os-window) !important;
+  border-color: var(--os-line) !important;
+  box-shadow: 6px 6px 0 rgba(0,0,0,.4) !important;
+}
+
+.dapp-os.dark .execute-stage .tx-tracker-close {
+  background: var(--os-paper) !important;
+  color: var(--os-ink) !important;
+  border-color: var(--os-line) !important;
+  box-shadow: 2px 2px 0 var(--os-line) !important;
+}
+
+.dapp-os.dark .execute-stage .tx-tracker-close:hover {
+  background: var(--os-window) !important;
+}
+
+.dapp-os.dark .execute-stage .tx-progress-bar {
+  background: var(--os-paper) !important;
+  border-color: var(--os-line) !important;
+}
+
+.dapp-os.dark .execute-stage .tx-timer,
+.dapp-os.dark .execute-stage .tx-summary-badge {
+  background: var(--os-paper) !important;
+  border-color: var(--os-line) !important;
+  color: var(--os-ink) !important;
+}
+
+.dapp-os.dark .execute-stage .metro-station.pending .metro-dot {
+  background: var(--os-paper) !important;
+  border-color: var(--os-line) !important;
+  color: var(--os-muted) !important;
+}
+
+/* Wallet Connection Modal */
+.dapp-os.dark .wallet-choice-modal {
+  background: var(--os-window) !important;
+  border-color: var(--os-line) !important;
+  box-shadow: 7px 7px 0 var(--os-line) !important;
+}
+
+.dapp-os.dark .wallet-choice-header {
+  background: #252538 !important;
+  border-bottom-color: var(--os-line) !important;
+}
+
+.dapp-os.dark .wallet-choice-close,
+.dapp-os.dark .wallet-choice-option,
+.dapp-os.dark .wallet-action-btn {
+  background: var(--os-paper) !important;
+  color: var(--os-ink) !important;
+  border-color: var(--os-line) !important;
+}
+
+.dapp-os.dark .wallet-choice-option:hover,
+.dapp-os.dark .wallet-action-btn:hover {
+  background: var(--os-window) !important;
+}
+
+/* Route Details Modal */
+.dapp-os.dark .modal-window {
+  background: var(--os-window) !important;
+  border-color: var(--os-line) !important;
+  box-shadow: 10px 10px 0 rgba(0, 0, 0, 0.25) !important;
+}
+
+.dapp-os.dark .modal-window .close-btn {
+  color: var(--os-ink) !important;
+}
+
+.dapp-os.dark .modal-window .close-btn:hover {
+  color: var(--os-red) !important;
+}
+
+.dapp-os.dark .modal-narration-section {
+  background: var(--os-paper) !important;
+  border-color: var(--os-line) !important;
+}
+
+/* Widget Header (Form Title block) in execute page */
+.dapp-os.dark .execute-stage .widget-header {
+  background: #252538 !important;
+  border-color: var(--os-line) !important;
+}
+
+/* ── Execute Form Card and Inner Elements in Dark Mode ──────────────────── */
+.dapp-os.dark .execute-stage .card.widget {
+  background: var(--os-window) !important;
+  border-color: var(--os-line) !important;
+  box-shadow: 6px 6px 0 rgba(0, 0, 0, 0.4) !important;
+}
+
+.dapp-os.dark .wallet-bar {
+  background: rgba(92, 141, 245, 0.1) !important;
+  border-color: rgba(92, 141, 245, 0.25) !important;
+}
+
+.dapp-os.dark .wallet-addr,
+.dapp-os.dark .wallet-balance-label,
+.dapp-os.dark .non-evm-bar .wallet-addr {
+  color: var(--os-muted) !important;
+}
+
+.dapp-os.dark .wallet-balance strong,
+.dapp-os.dark .non-evm-bar strong {
+  color: var(--os-ink) !important;
+}
+
+.dapp-os.dark .max-btn {
+  background: rgba(92, 141, 245, 0.2) !important;
+  border-color: rgba(92, 141, 245, 0.4) !important;
+  color: var(--os-blue) !important;
+}
+
+.dapp-os.dark .amount-input::placeholder {
+  color: rgba(255, 255, 255, 0.4) !important;
+}
+
+/* ── Homepage Visual Graphic Contrast Override ─────────────────────────── */
+.retro-site.dark .block-stack span,
+.retro-site.dark .coin-orbit span:nth-child(1),
+.retro-site.dark .chain-path span {
+  color: #16151c !important;
+}
+
+/* ── Execute Page Final Contrast Overrides ─────────────────────────────── */
+.dapp-os.dark .execute-stage .settings-btn {
+  color: var(--os-ink) !important;
+}
+
+.dapp-os.dark .token-badge {
+  color: var(--os-ink) !important;
+  background: var(--os-paper) !important;
+  border: 2px solid var(--os-line) !important;
+}
+
 

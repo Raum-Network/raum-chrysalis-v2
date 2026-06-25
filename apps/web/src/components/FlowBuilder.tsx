@@ -616,32 +616,90 @@ export default function FlowBuilder() {
     ? parseFloat(formatUnits(rawBalance as bigint, 6)).toFixed(2)
     : null;
 
+  const arcChainId = CHAIN_KEY_TO_ID["ARC"];
+  const baseChainId = CHAIN_KEY_TO_ID["BASE_SEPOLIA"];
+  const ethChainId = CHAIN_KEY_TO_ID["ETHEREUM_SEPOLIA"];
+
+  const { data: arcRawBalance } = useReadContract({
+    chainId: arcChainId,
+    address: USDC_ADDRESSES[arcChainId],
+    abi: ERC20_ABI,
+    functionName: "balanceOf",
+    args: address ? [address] : undefined,
+    query: { enabled: Boolean(address && arcChainId && USDC_ADDRESSES[arcChainId]) }
+  });
+
+  const { data: baseRawBalance } = useReadContract({
+    chainId: baseChainId,
+    address: USDC_ADDRESSES[baseChainId],
+    abi: ERC20_ABI,
+    functionName: "balanceOf",
+    args: address ? [address] : undefined,
+    query: { enabled: Boolean(address && baseChainId && USDC_ADDRESSES[baseChainId]) }
+  });
+
+  const { data: ethRawBalance } = useReadContract({
+    chainId: ethChainId,
+    address: USDC_ADDRESSES[ethChainId],
+    abi: ERC20_ABI,
+    functionName: "balanceOf",
+    args: address ? [address] : undefined,
+    query: { enabled: Boolean(address && ethChainId && USDC_ADDRESSES[ethChainId]) }
+  });
+
+  const walletBalances = useMemo(() => {
+    const balances: Record<string, number> = {};
+    if (arcRawBalance !== undefined) {
+      balances["ARC"] = parseFloat(formatUnits(arcRawBalance as bigint, 6));
+    }
+    if (baseRawBalance !== undefined) {
+      balances["BASE_SEPOLIA"] = parseFloat(formatUnits(baseRawBalance as bigint, 6));
+    }
+    if (ethRawBalance !== undefined) {
+      balances["ETHEREUM_SEPOLIA"] = parseFloat(formatUnits(ethRawBalance as bigint, 6));
+    }
+    return balances;
+  }, [arcRawBalance, baseRawBalance, ethRawBalance]);
+
   async function checkUnifiedBalanceSuggestion(customAmount?: number) {
     const amtNeeded = customAmount ?? (parseFloat(amount) || 0);
     if (amtNeeded <= 0) return;
 
     let suggestedChain: string | null = null;
     let suggestedBal = 0;
-    try {
-      if (address) {
-        const res = await fetch(`${API_URL}/gateway/balances/${address}`);
-        if (res.ok) {
-          const data = await res.json();
-          if (data?.balances && Array.isArray(data.balances)) {
-            for (const bal of data.balances) {
-              const chainKey = bal.chain;
-              const amt = Number(bal.amount ?? bal.balance ?? 0);
-              if (chainKey !== sourceChain && amt >= amtNeeded) {
-                suggestedChain = chainKey;
-                suggestedBal = amt;
-                break;
+
+    // 1. Check wallet balances first (instant, read directly from RPC)
+    for (const [chainKey, bal] of Object.entries(walletBalances)) {
+      if (chainKey !== sourceChain && bal >= amtNeeded) {
+        suggestedChain = chainKey;
+        suggestedBal = bal;
+        break;
+      }
+    }
+
+    // 2. If no wallet balance is enough, check gateway balances from the API
+    if (!suggestedChain) {
+      try {
+        if (address) {
+          const res = await fetch(`${API_URL}/gateway/balances/${address}`);
+          if (res.ok) {
+            const data = await res.json();
+            if (data?.balances && Array.isArray(data.balances)) {
+              for (const bal of data.balances) {
+                const chainKey = bal.chain;
+                const amt = Number(bal.amount ?? bal.balance ?? 0);
+                if (chainKey !== sourceChain && amt >= amtNeeded) {
+                  suggestedChain = chainKey;
+                  suggestedBal = amt;
+                  break;
+                }
               }
             }
           }
         }
+      } catch (err) {
+        console.error("Failed to fetch suggested chain balances:", err);
       }
-    } catch (err) {
-      console.error("Failed to fetch suggested chain balances:", err);
     }
 
     if (suggestedChain) {
@@ -660,7 +718,7 @@ export default function FlowBuilder() {
       setSuggestedSourceChain(null);
       setSuggestedSourceBalance(0);
     }
-  }, [amount, sourceChain, rawBalance, isConnected, address]);
+  }, [amount, sourceChain, rawBalance, isConnected, address, walletBalances]);
 
   // Read USDC allowance for router
   const { data: rawAllowance, refetch: refetchAllowance } = useReadContract({
