@@ -93,7 +93,10 @@ app.get("/config", (_req: any, res: any) => {
     optimizationGoals: ["balanced", "lowest_cost", "fastest", "safest"],
     operatorAddress,
     solanaOperatorAddress,
-    stellarOperatorAddress
+    stellarOperatorAddress,
+    nanopaymentFeeReceiver: nanopaymentAgent.sellerAddress,
+    nanopaymentFeeReceiverSource: nanopaymentAgent.feeReceiverSource,
+    x402AcceptedNetworks: nanopaymentAgent.acceptedNetworkIds()
   });
 });
 
@@ -124,7 +127,7 @@ app.post("/quotes", async (req: any, res: any) => {
   res.json(await agentManager.quote(parsed.data));
 });
 
-nanopaymentAgent.createResource({ path: "/paid/execute-intent", priceUsdc: "0.05", description: "Relayer gas fee for cross-chain execution." });
+nanopaymentAgent.createResource({ path: "/paid/execute-intent", priceUsdc: "0.05", description: "Raum relayer/API fee for cross-chain execution." });
 
 app.post("/intents", (req: any, res: any, next: any) => {
   if (req.body?.preferredRoute === "LOCAL") {
@@ -223,6 +226,10 @@ async function fetchOnChainReceipts(ownerAddress: string): Promise<IntentReceipt
         protocol, action, asset, amountIn, amountOut,
         routeKind, txHash, destinationRecipient, mintedAt
       ] = r;
+      const sourceDisplay = parseReceiptDisplayAmount(String(amountIn), "USDC");
+      const sourceAsset = sourceAssetForReceipt(sourceDisplay.symbol);
+      const outputDisplay = parseReceiptDisplayAmount(String(amountOut), String(asset || ""));
+      const outputSymbol = outputSymbolForOnChainReceipt(String(protocol), String(action), String(asset), outputDisplay.symbol);
 
       // Check if beneficiary (EVM) or destinationRecipient (EVM/Solana/Stellar) matches any of our query needles
       const isMatch = needles.some(needle => 
@@ -245,8 +252,8 @@ async function fetchOnChainReceipts(ownerAddress: string): Promise<IntentReceipt
           destinationChain,
           protocol,
           action,
-          asset,
-          amount: amountIn,
+          asset: sourceAsset,
+          amount: sourceDisplay.amount,
           recipient: destinationRecipient,
           preferredRoute: routeKind,
           metadata: {
@@ -259,8 +266,10 @@ async function fetchOnChainReceipts(ownerAddress: string): Promise<IntentReceipt
           txHash: !isSolana && !isStellar ? txHash : undefined,
           solanaTxHash: isSolana ? txHash : undefined,
           stellarTxHash: isStellar ? txHash : undefined,
-          amountOutFormatted: amountOut,
-          tokenOutSymbol: asset
+          amountOutFormatted: outputDisplay.amount,
+          amountOutSymbol: outputSymbol,
+          tokenOutSymbol: outputSymbol,
+          receiptTokenSymbol: outputSymbol
         },
         plan: {
           routeKind,
@@ -268,8 +277,8 @@ async function fetchOnChainReceipts(ownerAddress: string): Promise<IntentReceipt
           destinationChain,
           protocol,
           action,
-          amount: amountIn,
-          asset,
+          amount: sourceDisplay.amount,
+          asset: sourceAsset,
           recipient: destinationRecipient,
           requiresHumanApproval: false,
           rationale: ["Restored from on-chain history."],
@@ -294,6 +303,25 @@ async function fetchOnChainReceipts(ownerAddress: string): Promise<IntentReceipt
     console.error("[OnChainReceipts] Failed to fetch on-chain receipts:", err);
     return [];
   }
+}
+
+function parseReceiptDisplayAmount(display: string, fallbackSymbol: string): { amount: string; symbol: string } {
+  const trimmed = display.trim();
+  const match = trimmed.match(/^(.+?)\s+([A-Za-z][A-Za-z0-9._-]*)$/);
+  if (!match) return { amount: trimmed, symbol: fallbackSymbol };
+  return { amount: match[1].trim(), symbol: match[2].trim() };
+}
+
+function sourceAssetForReceipt(symbol: string): "USDC" | "EURC" {
+  return symbol === "EURC" ? "EURC" : "USDC";
+}
+
+function outputSymbolForOnChainReceipt(protocol: string, action: string, storedAsset: string, parsedSymbol: string): string {
+  if (parsedSymbol && parsedSymbol !== "USDC") return parsedSymbol;
+  if (storedAsset && storedAsset !== "USDC") return storedAsset;
+  if (protocol === "SOL_MARINADE") return "mSOL";
+  if (protocol === "SOL_KAMINO_LEND" && action !== "withdraw") return "Kamino USDC position";
+  return parsedSymbol || storedAsset || "USDC";
 }
 
 app.get("/transactions", async (req: any, res: any) => {

@@ -3,6 +3,7 @@ import { privateKeyToAccount } from "viem/accounts";
 import { env, findChainByKey } from "../../config/index.js";
 import type { IntentReceipt, NftReceipt } from "../../types.js";
 import { evmTransactionFeeLine, sumFeeLinesUsd } from "../fees/transactionFeeUtils.js";
+import { formatUnitsDecimal } from "../../utils/amounts.js";
 
 const RECEIPT_NFT_ABI = parseAbi([
   "function mintReceipt(address beneficiary, string intentId, string sourceChain, string destinationChain, string protocol, string action, string asset, string amountIn, string amountOut, string routeKind, string txHash) external returns (uint256)",
@@ -146,15 +147,8 @@ export class ArcReceiptMinter {
           ? `${protocolReceipt.executedAmountUsdc} ${protocolReceipt.tokenInSymbol ?? receipt.input.asset}`
           : `${receipt.plan?.executionAmount ?? receipt.input.amount} ${receipt.input.asset}`
       );
-      const amountOut = String(
-        protocolReceipt.amountOutFormatted
-          ? `${protocolReceipt.amountOutFormatted} ${protocolReceipt.amountOutSymbol ?? protocolReceipt.tokenOutSymbol ?? ""}`.trim()
-          : protocolReceipt.amountOut ??
-            protocolReceipt.amount ??
-            receipt.plan?.feeQuote?.estimatedAmountToProtocol ??
-            receipt.input.amount
-      );
-      const outputSymbol = String(protocolReceipt.amountOutSymbol ?? protocolReceipt.tokenOutSymbol ?? "");
+      const outputSymbol = outputSymbolForReceipt(receipt);
+      const amountOut = amountOutForReceipt(receipt, outputSymbol);
       const receiptAsset = outputSymbol || receipt.input.asset;
       const routeKind = String(receipt.plan?.routeKind ?? "UNKNOWN");
       const destinationRecipient = destinationRecipientForReceipt(receipt);
@@ -252,4 +246,33 @@ function destinationRecipientForReceipt(receipt: IntentReceipt): string {
   }
 
   return "";
+}
+
+function outputSymbolForReceipt(receipt: IntentReceipt): string {
+  const protocolReceipt = receipt.protocolReceipt ?? {};
+  const explicit = protocolReceipt.amountOutSymbol ?? protocolReceipt.tokenOutSymbol ?? protocolReceipt.receiptTokenSymbol;
+  if (typeof explicit === "string" && explicit.trim()) return explicit.trim();
+  const quoteSymbol = receipt.plan?.feeQuote?.receiptTokenSymbol ?? receipt.plan?.feeQuote?.outputTokenSymbol;
+  if (typeof quoteSymbol === "string" && quoteSymbol.trim()) return quoteSymbol.trim();
+  if (receipt.input.protocol === "SOL_MARINADE") return "mSOL";
+  return "";
+}
+
+function amountOutForReceipt(receipt: IntentReceipt, outputSymbol: string): string {
+  const protocolReceipt = receipt.protocolReceipt ?? {};
+  const formatted = protocolReceipt.amountOutFormatted;
+  if (typeof formatted === "string" && formatted.trim()) {
+    return `${formatted.trim()} ${outputSymbol}`.trim();
+  }
+  const raw = protocolReceipt.amountOutRaw ?? protocolReceipt.amountOut ?? protocolReceipt.amount;
+  if (typeof raw === "string" && raw.trim()) {
+    const maybeFormatted = outputSymbol === "mSOL" && /^[0-9]+$/.test(raw)
+      ? formatUnitsDecimal(BigInt(raw), 9)
+      : raw;
+    return `${maybeFormatted} ${outputSymbol}`.trim();
+  }
+  const estimated = receipt.plan?.feeQuote?.estimatedOutputAmount
+    ?? receipt.plan?.feeQuote?.estimatedAmountToProtocol
+    ?? receipt.input.amount;
+  return `${estimated} ${outputSymbol || receipt.input.asset}`.trim();
 }

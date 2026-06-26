@@ -36,7 +36,7 @@ export class ProtocolActionAgent {
       const tokenIn = addressFromMetadata(input.metadata?.tokenIn, chain.tokens.USDC.address);
       const tokenOut = addressFromMetadata(input.metadata?.tokenOut, chain.tokens.USDC.address);
       const feeTier = Number(input.metadata?.fee ?? 500);
-      const recipient = (input.recipient as `0x${string}`) ?? zeroAddress;
+      const recipient = addressFromMetadata(input.recipient, zeroAddress);
       const swapKind = String(input.metadata?.swapKind ?? "exactInputSingle");
       const action = uniswapAction(swapKind);
       const amountOutMinimum = bigintFromMetadata(input.metadata?.amountOutMinimum, 0n);
@@ -71,11 +71,11 @@ export class ProtocolActionAgent {
     }
 
     if (input.protocol === "ETH_AAVE_V3") {
-      const tokenIn = chain.tokens.USDC.address;
-      const tokenOut = (input.metadata?.tokenOut as `0x${string}`) ?? "0xC558DBdd856501FCd9aaF1E62eae57A9F0629a3c";
+      const tokenIn = addressFromMetadata(chain.tokens.USDC.address, zeroAddress);
+      const tokenOut = addressFromMetadata(input.metadata?.tokenOut, "0xC558DBdd856501FCd9aaF1E62eae57A9F0629a3c");
       const fee = Number(input.metadata?.fee ?? 3000);
       const amountOutMin = bigintFromMetadata(input.metadata?.amountOutMin, 0n);
-      const recipient = (input.recipient as `0x${string}`) ?? zeroAddress;
+      const recipient = addressFromMetadata(input.recipient, zeroAddress);
       
       return {
         executionMode: "evm-contract",
@@ -99,7 +99,7 @@ export class ProtocolActionAgent {
     if (input.protocol === "BASE_MORPHO_BLUE") {
       const morphoAction = morphoActionId(String(input.metadata?.morphoAction ?? input.action));
       const market = morphoMarketFromMetadata(input.metadata?.market, chain.tokens.USDC.address);
-      const recipient = (input.recipient as `0x${string}`) ?? zeroAddress;
+      const recipient = addressFromMetadata(input.recipient, zeroAddress);
       const receiver = addressFromMetadata(input.metadata?.receiver, recipient);
       const onBehalf = addressFromMetadata(input.metadata?.onBehalf ?? input.metadata?.onBehalfOf, recipient);
       return {
@@ -168,11 +168,11 @@ export class ProtocolActionAgent {
     }
 
     if (input.protocol === "ARC_USYC_TELLER") {
-      const tellerAddress = chain.circle?.usyc?.teller as `0x${string}` ?? zeroAddress;
-      const usycAddress = chain.tokens?.USYC?.address as `0x${string}` ?? zeroAddress;
-      const usdcAddress = chain.tokens?.USDC?.address as `0x${string}` ?? zeroAddress;
+      const tellerAddress = addressFromMetadata(chain.circle?.usyc?.teller, zeroAddress);
+      const usycAddress = addressFromMetadata(chain.tokens?.USYC?.address, zeroAddress);
+      const usdcAddress = addressFromMetadata(chain.tokens?.USDC?.address, zeroAddress);
       const action = input.action === "sell" ? "redeem" : "deposit";
-      const receiver = (input.recipient as `0x${string}`) ?? zeroAddress;
+      const receiver = addressFromMetadata(input.recipient, zeroAddress);
       const parsedAmount = parseUnitsDecimal(input.amount, 6);
 
       const tellerAbi = parseAbi([
@@ -220,7 +220,9 @@ export class ProtocolActionAgent {
 }
 
 function addressFromMetadata(value: unknown, fallback: `0x${string}`): `0x${string}` {
-  return typeof value === "string" && value.startsWith("0x") ? value as `0x${string}` : fallback;
+  return typeof value === "string" && /^0x[a-fA-F0-9]{40}$/.test(value)
+    ? value.toLowerCase() as `0x${string}`
+    : fallback.toLowerCase() as `0x${string}`;
 }
 
 function hexFromMetadata(value: unknown): `0x${string}` {

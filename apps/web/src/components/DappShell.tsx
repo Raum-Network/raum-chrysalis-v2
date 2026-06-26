@@ -3,8 +3,8 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { formatUnits, createPublicClient, http } from "viem";
-import { useAccount, useReadContract } from "wagmi";
+import { formatUnits, parseUnits, createPublicClient, http } from "viem";
+import { useAccount, usePublicClient, useReadContract, useSignTypedData, useWriteContract } from "wagmi";
 import type { AppConfig, TransactionResponse, TransactionsResponse } from "@arc-os/sdk";
 import AppWalletConnect from "./AppWalletConnect";
 import { ERC20_ABI, USDC_ADDRESSES, CHAIN_KEY_TO_ID, arcTestnet } from "../providers";
@@ -23,6 +23,74 @@ const SOLANA_ASSOCIATED_TOKEN_PROGRAM_ID = new SolanaPublicKey("ATokenGPvbdGVxr1
 const STELLAR_TESTNET_HORIZON_URL = "https://horizon-testnet.stellar.org";
 const STELLAR_USDC_CODE = "USDC";
 const STELLAR_USDC_ISSUER = "GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5";
+const ARC_GATEWAY_WALLET = "0x0077777d7EBA4688BDeF3E311b846F25870A19B9" as const;
+
+const GATEWAY_WALLET_ABI = [
+  { name: "deposit", type: "function", stateMutability: "nonpayable", inputs: [{ name: "token", type: "address" }, { name: "value", type: "uint256" }], outputs: [] },
+] as const;
+
+const TERMINAL_SWAP_TOKENS: Record<string, Record<string, string>> = {
+  BASE_SEPOLIA: {
+    WETH: "0x4200000000000000000000000000000000000006"
+  },
+  ETHEREUM_SEPOLIA: {
+    WETH: "0xfFf9976782d46CC05630D1f6eBAb18b2324d6B14"
+  }
+};
+
+const TERMINAL_PROTOCOL_CHAIN: Record<string, string> = {
+  ARC_USDC_TRANSFER: "ARC",
+  ARC_USYC_TELLER: "ARC",
+  BASE_USDC_TRANSFER: "BASE_SEPOLIA",
+  BASE_UNISWAP_V3: "BASE_SEPOLIA",
+  BASE_MORPHO_BLUE: "BASE_SEPOLIA",
+  ETH_USDC_TRANSFER: "ETHEREUM_SEPOLIA",
+  ETH_UNISWAP_V3: "ETHEREUM_SEPOLIA",
+  ETH_AAVE_V3: "ETHEREUM_SEPOLIA",
+  SOL_USDC_TRANSFER: "SOLANA_DEVNET",
+  SOL_MARINADE: "SOLANA_DEVNET",
+  XLM_USDC_TRANSFER: "STELLAR_TESTNET",
+  XLM_AQUARIUS: "STELLAR_TESTNET",
+  XLM_BLEND: "STELLAR_TESTNET"
+};
+
+const TERMINAL_PROTOCOL_DEFAULT_ACTION: Record<string, string> = {
+  ARC_USDC_TRANSFER: "transfer",
+  BASE_USDC_TRANSFER: "transfer",
+  ETH_USDC_TRANSFER: "transfer",
+  SOL_USDC_TRANSFER: "transfer",
+  XLM_USDC_TRANSFER: "transfer",
+  ARC_USYC_TELLER: "supply",
+  BASE_UNISWAP_V3: "swap",
+  ETH_UNISWAP_V3: "swap",
+  BASE_MORPHO_BLUE: "supply",
+  ETH_AAVE_V3: "supply",
+  SOL_MARINADE: "Deposit",
+  XLM_AQUARIUS: "Swap",
+  XLM_BLEND: "supply"
+};
+
+const TERMINAL_ROUTE_ALIASES: Record<string, string> = {
+  gateway: "GATEWAY",
+  cctp: "CCTP_V2",
+  cctpv2: "CCTP_V2",
+  cctp_v2: "CCTP_V2",
+  bridgekit: "BRIDGEKIT",
+  local: "LOCAL"
+};
+
+const TERMINAL_CHAIN_ALIASES: Record<string, string> = {
+  arc: "ARC",
+  base: "BASE_SEPOLIA",
+  "base sepolia": "BASE_SEPOLIA",
+  ethereum: "ETHEREUM_SEPOLIA",
+  eth: "ETHEREUM_SEPOLIA",
+  sepolia: "ETHEREUM_SEPOLIA",
+  solana: "SOLANA_DEVNET",
+  "solana devnet": "SOLANA_DEVNET",
+  stellar: "STELLAR_TESTNET",
+  "stellar testnet": "STELLAR_TESTNET"
+};
 
 function solanaAta(mint: SolanaPublicKey, owner: SolanaPublicKey): SolanaPublicKey {
   return SolanaPublicKey.findProgramAddressSync(
@@ -219,12 +287,242 @@ function chainKeyFromId(chainId?: number) {
   return undefined;
 }
 
+const GATEWAY_AUTH_VALIDITY_WINDOW_SECONDS = 7 * 24 * 60 * 60 + 100;
+
+function createNonce() {
+  const bytes = new Uint8Array(32);
+  crypto.getRandomValues(bytes);
+  return `0x${Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("")}` as `0x${string}`;
+}
+
+function buildGatewayPaymentAuth(from: `0x${string}`, requirement: any) {
+  const chainId = Number(String(requirement.network).replace("eip155:", ""));
+  const now = Math.floor(Date.now() / 1000);
+  const validBefore = now + Math.max(Number(requirement.maxTimeoutSeconds ?? 0), GATEWAY_AUTH_VALIDITY_WINDOW_SECONDS);
+  const authorization = {
+    from,
+    to: requirement.payTo,
+    value: requirement.amount,
+    validAfter: String(now - 600),
+    validBefore: String(validBefore),
+    nonce: createNonce()
+  };
+  return {
+    types: {
+      TransferWithAuthorization: [
+        { name: "from", type: "address" },
+        { name: "to", type: "address" },
+        { name: "value", type: "uint256" },
+        { name: "validAfter", type: "uint256" },
+        { name: "validBefore", type: "uint256" },
+        { name: "nonce", type: "bytes32" }
+      ]
+    } as const,
+    domain: { name: "GatewayWalletBatched", version: "1", chainId, verifyingContract: requirement.extra.verifyingContract } as const,
+    primaryType: "TransferWithAuthorization" as const,
+    message: {
+      from: authorization.from,
+      to: authorization.to,
+      value: BigInt(authorization.value),
+      validAfter: BigInt(authorization.validAfter),
+      validBefore: BigInt(authorization.validBefore),
+      nonce: authorization.nonce
+    },
+    authorization
+  };
+}
+
+function encodeBase64Json(value: Record<string, unknown>) {
+  return btoa(JSON.stringify(value));
+}
+
+function decodeBase64Json<T = any>(value: string): T {
+  return JSON.parse(atob(value)) as T;
+}
+
 function formatTerminalBody(body: string) {
   try {
     return JSON.stringify(JSON.parse(body), null, 2);
   } catch {
     return body;
   }
+}
+
+function normalizeTerminalIntent(intent: any, wallets: {
+  address?: string;
+  solanaAddress?: string | null;
+  stellarAddress?: string | null;
+  connectedChain?: string;
+}) {
+  const protocol = normalizeTerminalProtocol(intent.protocol, intent.destinationChain);
+  const protocolChain = TERMINAL_PROTOCOL_CHAIN[protocol];
+  const destinationChain = protocolChain
+    ?? intent.destinationChain
+    ?? (protocol.startsWith("SOL_") ? "SOLANA_DEVNET" : protocol.startsWith("XLM_") ? "STELLAR_TESTNET" : wallets.connectedChain ?? "ARC");
+  const recipient = intent.recipient
+    ?? (destinationChain === "SOLANA_DEVNET" ? wallets.solanaAddress : destinationChain === "STELLAR_TESTNET" ? wallets.stellarAddress : wallets.address)
+    ?? undefined;
+  const tokenOutValue = intent.metadata?.tokenOut;
+  const resolvedTokenOut = resolveTerminalTokenOut(destinationChain, tokenOutValue);
+  const metadata = {
+    ...(intent.metadata ?? {}),
+    ...(resolvedTokenOut ? { tokenOut: resolvedTokenOut.address, tokenOutSymbol: resolvedTokenOut.symbol } : {}),
+    ...(wallets.address ? { sourceWalletAddress: wallets.address, evmReceiptWalletAddress: wallets.address } : {}),
+    ...(wallets.solanaAddress ? { solanaAddress: wallets.solanaAddress } : {}),
+    ...(wallets.stellarAddress ? { stellarAddress: wallets.stellarAddress } : {}),
+    ...(recipient ? { destinationRecipient: recipient } : {})
+  };
+  return {
+    sourceChain: intent.sourceChain ?? wallets.connectedChain ?? "ARC",
+    destinationChain,
+    asset: intent.asset ?? "USDC",
+    amount: intent.amount ?? "0.05",
+    protocol,
+    action: normalizeTerminalAction(protocol, intent.action),
+    autonomous: intent.autonomous ?? true,
+    recipient,
+    slippageBps: intent.slippageBps ?? 50,
+    optimizationGoal: intent.optimizationGoal ?? "balanced",
+    preferredRoute: intent.preferredRoute,
+    maxTotalFeeUsd: intent.maxTotalFeeUsd,
+    metadata
+  };
+}
+
+function normalizeTerminalProtocol(protocol: unknown, destinationChain?: string): string {
+  if (typeof protocol === "string" && protocol.trim()) return protocol.trim();
+  if (destinationChain === "BASE_SEPOLIA") return "BASE_UNISWAP_V3";
+  if (destinationChain === "SOLANA_DEVNET") return "SOL_MARINADE";
+  if (destinationChain === "STELLAR_TESTNET") return "XLM_BLEND";
+  return "ETH_AAVE_V3";
+}
+
+function normalizeTerminalAction(protocol: string, action: unknown): string {
+  const raw = typeof action === "string" ? action.trim() : "";
+  if (protocol === "SOL_MARINADE" && ["stake", "supply", "deposit"].includes(raw.toLowerCase())) return "Deposit";
+  if (protocol === "XLM_AQUARIUS" && raw.toLowerCase() === "swap") return "Swap";
+  return raw || TERMINAL_PROTOCOL_DEFAULT_ACTION[protocol] || "supply";
+}
+
+function validateTerminalIntent(intent: any): string | null {
+  if (intent.sourceChain === intent.destinationChain) {
+    return `Same-chain route disabled in terminal: source and destination are both ${CHAIN_LABEL[intent.sourceChain] ?? intent.sourceChain}. Pick a different source or destination chain.`;
+  }
+  const protocolChain = TERMINAL_PROTOCOL_CHAIN[intent.protocol];
+  if (protocolChain && intent.destinationChain !== protocolChain) {
+    return `${intent.protocol} runs on ${CHAIN_LABEL[protocolChain] ?? protocolChain}, not ${CHAIN_LABEL[intent.destinationChain] ?? intent.destinationChain}.`;
+  }
+  if (intent.protocol === "BASE_UNISWAP_V3" || intent.protocol === "ETH_UNISWAP_V3") {
+    const tokenOut = intent.metadata?.tokenOut;
+    if (typeof tokenOut !== "string" || !tokenOut.startsWith("0x")) {
+      return `${intent.protocol} swap needs a known tokenOut address. Try WETH or use a contract address.`;
+    }
+  }
+  return null;
+}
+
+function terminalRoutePatch(message: string): Record<string, unknown> | null {
+  const text = message.toLowerCase();
+  const patch: Record<string, unknown> = {};
+  for (const [alias, routeKind] of Object.entries(TERMINAL_ROUTE_ALIASES)) {
+    if (new RegExp(`\\b${alias}\\b`, "i").test(text)) patch.preferredRoute = routeKind;
+  }
+  const amountMatch = text.match(/\b(?:amount|for|of)?\s*(\d+(?:\.\d+)?)\s*(?:usdc)?\b/);
+  if (amountMatch && !/\beip155\b/.test(text)) patch.amount = amountMatch[1];
+  for (const [alias, chainKey] of Object.entries(TERMINAL_CHAIN_ALIASES)) {
+    if (new RegExp(`\\bfrom\\s+${alias}\\b`, "i").test(text)) patch.sourceChain = chainKey;
+    if (new RegExp(`\\b(?:to|on|onto|for)\\s+${alias}\\b`, "i").test(text)) patch.destinationChain = chainKey;
+  }
+  if (/\bfastest\b/.test(text)) patch.optimizationGoal = "fastest";
+  if (/\blowest(?:\s|-)?cost\b|\bcheapest\b/.test(text)) patch.optimizationGoal = "lowest_cost";
+  if (/\bsafest\b/.test(text)) patch.optimizationGoal = "safest";
+  if (/\bbalanced\b/.test(text)) patch.optimizationGoal = "balanced";
+  if (/\bswap\b/.test(text)) patch.action = "swap";
+  if (/\bweth\b/.test(text)) patch.metadata = { tokenOut: "WETH", tokenOutSymbol: "WETH" };
+  return Object.keys(patch).length > 0 ? patch : null;
+}
+
+function mergeTerminalIntent(previous: any, next: any) {
+  const merged = {
+    ...previous,
+    ...(next ?? {}),
+    metadata: {
+      ...(previous?.metadata ?? {}),
+      ...(next?.metadata ?? {})
+    }
+  };
+  if (next?.destinationChain && next.destinationChain !== previous?.destinationChain && !next?.protocol) {
+    delete (merged as any).protocol;
+  }
+  if (next?.destinationChain && next.destinationChain !== previous?.destinationChain && !next?.metadata?.tokenOut) {
+    delete merged.metadata.tokenOut;
+    delete merged.metadata.tokenOutSymbol;
+  }
+  return merged;
+}
+
+function resolveTerminalTokenOut(destinationChain: string, value: unknown): { address: string; symbol: string } | undefined {
+  if (typeof value !== "string" || !value.trim()) return undefined;
+  if (value.startsWith("0x") && value.length === 42) {
+    const known = Object.entries(TERMINAL_SWAP_TOKENS[destinationChain] ?? {})
+      .find(([, address]) => address.toLowerCase() === value.toLowerCase());
+    return { address: value, symbol: known?.[0] ?? "Selected token" };
+  }
+  const symbol = value.trim().toUpperCase();
+  const address = TERMINAL_SWAP_TOKENS[destinationChain]?.[symbol];
+  return address ? { address, symbol } : undefined;
+}
+
+function terminalMetadataSummary(metadata: unknown): string {
+  if (!metadata || typeof metadata !== "object") return "";
+  const value = metadata as Record<string, unknown>;
+  const parts: string[] = [];
+  if (typeof value.tokenOutSymbol === "string") parts.push(`tokenOut ${value.tokenOutSymbol}`);
+  else if (typeof value.tokenOut === "string") parts.push(`tokenOut ${shortHash(value.tokenOut)}`);
+  if (typeof value.sourceWalletAddress === "string") parts.push(`source ${shortHash(value.sourceWalletAddress)}`);
+  if (typeof value.destinationRecipient === "string") parts.push(`dest ${shortHash(value.destinationRecipient)}`);
+  if (typeof value.solanaAddress === "string") parts.push(`sol ${shortHash(value.solanaAddress)}`);
+  if (typeof value.stellarAddress === "string") parts.push(`stellar ${shortHash(value.stellarAddress)}`);
+  return parts.join(" | ");
+}
+
+function terminalStepForStatus(status: string, receipt: any) {
+  switch (status) {
+    case "created": return "AIAssistant decoded intent";
+    case "quoted": return "FeeQuoteAgent produced quote";
+    case "planned": return `RoutePlannerAgent selected ${receipt.plan?.routeKind ?? "route"}`;
+    case "bridging": return `Circle rail executing ${receipt.plan?.routeKind ?? receipt.input?.preferredRoute ?? "bridge"}`;
+    case "executing": return `ProtocolActionAgent executing ${receipt.input?.protocol ?? "protocol"} ${receipt.input?.action ?? ""}`.trim();
+    case "finalizing": return "JudgeNarratorAgent minting Arc receipt + narration";
+    case "succeeded": return "route complete";
+    case "failed": return "route failed";
+    case "needs_approval": return "policy requires approval";
+    default: return status;
+  }
+}
+
+function terminalRouteBlockReason(route: any): string | null {
+  const plan = route?.analysis?.plan ?? route?.quote?.plan ?? {};
+  const selected = route?.quote?.selected ?? plan?.feeQuote;
+  if (route?.analysis?.policy?.allowed === false) {
+    const reasons = Array.isArray(route.analysis.policy.reasons) ? route.analysis.policy.reasons.join("; ") : "Risk policy blocked this route.";
+    return `RiskPolicyAgent blocked this route: ${reasons}`;
+  }
+  if (!selected) {
+    const alternatives = Array.isArray(plan?.alternatives) ? plan.alternatives : [];
+    const reasons = alternatives
+      .flatMap((alt: any) => Array.isArray(alt.rejectionReasons) ? alt.rejectionReasons : alt.reason ? [alt.reason] : [])
+      .filter(Boolean)
+      .slice(0, 3);
+    return reasons.length > 0
+      ? `No executable route found: ${reasons.join(" | ")}`
+      : "No executable route found. Replan with a different chain, protocol, or route.";
+  }
+  if (plan?.routeKind === "MOCK" || selected?.routeKind === "MOCK") {
+    const reason = Array.isArray(plan?.rationale) ? plan.rationale.find((item: string) => /mock|not eligible|no eligible|simulation/i.test(item)) : "";
+    return reason || "RoutePlannerAgent selected MOCK, so terminal will not move funds.";
+  }
+  return null;
 }
 
 export function useDappConfig() {
@@ -522,21 +820,38 @@ export function TransactionsView({ receiptsOnly = false }: { receiptsOnly?: bool
 export function TerminalView() {
   const { address, chain } = useAccount();
   const { solanaAddress, stellarAddress } = useWalletConnections();
+  const { config } = useDappConfig();
+  const publicClient = usePublicClient();
+  const { writeContractAsync } = useWriteContract();
+  const { signTypedDataAsync } = useSignTypedData();
   const [lines, setLines] = useState<string[]>([
     "Chrysalis terminal ready.",
     "Type help to see commands. Type swap 5 USDC on Base to WETH to build a route."
   ]);
   const [command, setCommand] = useState("");
   const [running, setRunning] = useState(false);
-  const [pendingRoute, setPendingRoute] = useState<{ intent: any; quote: any; explanation: string } | null>(null);
+  const [thinkingText, setThinkingText] = useState("");
+  const [thinkingTick, setThinkingTick] = useState(0);
+  const [pendingRoute, setPendingRoute] = useState<{ intent: any; quote: any; analysis: any; explanation: string } | null>(null);
 
   const outputRef = useRef<HTMLPreElement>(null);
+  const renderedLines = useMemo(() => {
+    if (!thinkingText) return lines;
+    const dots = ".".repeat((thinkingTick % 3) + 1);
+    return [...lines, `thinking${dots} ${thinkingText}`];
+  }, [lines, thinkingText, thinkingTick]);
 
   useEffect(() => {
     if (outputRef.current) {
       outputRef.current.scrollTop = outputRef.current.scrollHeight;
     }
-  }, [lines]);
+  }, [renderedLines]);
+
+  useEffect(() => {
+    if (!thinkingText) return;
+    const timer = setInterval(() => setThinkingTick((value) => value + 1), 450);
+    return () => clearInterval(timer);
+  }, [thinkingText]);
 
   const append = useCallback((next: string) => {
     setLines((prev) => [...prev, next]);
@@ -544,6 +859,7 @@ export function TerminalView() {
 
   async function fetchPath(label: string, path: string) {
     setRunning(true);
+    setThinkingText(`fetching ${path}`);
     append(`$ ${label}`);
     try {
       const res = await fetch(`${API_URL}${path}`);
@@ -552,19 +868,24 @@ export function TerminalView() {
     } catch (err) {
       append(err instanceof Error ? err.message : String(err));
     } finally {
+      setThinkingText("");
       setRunning(false);
     }
   }
 
-  async function askAI(message: string) {
+  async function askAI(message: string, previousIntent?: any) {
     setRunning(true);
+    setThinkingText("AIAssistant parsing route request");
     append(`$ ${message}`);
     try {
+      const aiMessage = previousIntent
+        ? `Update this pending route using the user's follow-up. Keep any fields the user did not change.\n\nPending route JSON:\n${JSON.stringify(previousIntent)}\n\nUser follow-up:\n${message}`
+        : message;
       const res = await fetch(`${API_URL}/agents/chat`, {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
-          message,
+          message: aiMessage,
           connectedWallet: address,
           connectedChain: chainKeyFromId(chain?.id),
           solanaWallet: solanaAddress ?? undefined,
@@ -575,46 +896,117 @@ export function TerminalView() {
       if (!res.ok) throw new Error(data?.error ?? data?.message ?? "AI agent failed");
 
       if (data.intent || data.quote) {
+        setThinkingText("RiskPolicyAgent, FeeQuoteAgent, RoutePlannerAgent building plan");
+        const mergedIntent = previousIntent ? mergeTerminalIntent(previousIntent, data.intent ?? {}) : data.intent ?? {};
+        const terminalIntent = normalizeTerminalIntent(mergedIntent, {
+          address,
+          solanaAddress,
+          stellarAddress,
+          connectedChain: chainKeyFromId(chain?.id)
+        });
+        const validationError = validateTerminalIntent(terminalIntent);
+        if (validationError) {
+          append(`route rejected.\n\n${validationError}`);
+          return;
+        }
+        const [analysisRes, quoteRes] = await Promise.all([
+          fetch(`${API_URL}/agents/analyze`, {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify(terminalIntent)
+          }),
+          fetch(`${API_URL}/quotes`, {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ ...terminalIntent, quoteOnly: true })
+          })
+        ]);
+        const analysis = await analysisRes.json();
+        const liveQuote = await quoteRes.json();
+        if (!analysisRes.ok) throw new Error(analysis?.error ?? "agent analysis failed");
+        if (!quoteRes.ok) throw new Error(liveQuote?.error ?? "route quote failed");
+        setThinkingText("");
+
         // Store the route for user confirmation
         setPendingRoute({
-          intent: data.intent ?? null,
-          quote: data.quote ?? null,
-          explanation: data.explanation ?? "AI decoded your route."
+          intent: terminalIntent,
+          quote: liveQuote,
+          analysis,
+          explanation: previousIntent
+            ? data.explanation ?? "Follow-up applied to previous route."
+            : data.explanation ?? "AI decoded your route."
         });
 
-        let routePreview = `${data.explanation ?? "Route decoded."}\n\n`;
+        let routePreview = `${previousIntent ? data.explanation ?? "Follow-up applied to previous route." : data.explanation ?? "Route decoded."}\n\n`;
         routePreview += "══════════════════════════════════════\n";
         routePreview += "  ROUTE PREVIEW\n";
         routePreview += "══════════════════════════════════════\n";
 
-        if (data.intent) {
-          const i = data.intent;
+        if (terminalIntent) {
+          const i = terminalIntent;
           if (i.sourceChain) routePreview += `  source:      ${CHAIN_LABEL[i.sourceChain] ?? i.sourceChain}\n`;
           if (i.destinationChain) routePreview += `  destination:  ${CHAIN_LABEL[i.destinationChain] ?? i.destinationChain}\n`;
           if (i.amount) routePreview += `  amount:       ${i.amount} ${i.asset ?? "USDC"}\n`;
           if (i.protocol) routePreview += `  protocol:     ${i.protocol}\n`;
           if (i.action) routePreview += `  action:       ${i.action}\n`;
-          const extras = Object.entries(i).filter(([k]) => !["sourceChain","destinationChain","amount","asset","protocol","action"].includes(k));
+          if (i.recipient) routePreview += `  recipient:    ${shortHash(i.recipient)}\n`;
+          if (i.slippageBps !== undefined) routePreview += `  slippage:     ${i.slippageBps} bps\n`;
+          if (i.optimizationGoal) routePreview += `  goal:         ${i.optimizationGoal}\n`;
+          const metadataSummary = terminalMetadataSummary(i.metadata);
+          if (metadataSummary) routePreview += `  metadata:     ${metadataSummary}\n`;
+          const extras = Object.entries(i).filter(([k, v]) =>
+            !["sourceChain","destinationChain","amount","asset","protocol","action","recipient","slippageBps","optimizationGoal","metadata","preferredRoute","maxTotalFeeUsd"].includes(k)
+            && v !== undefined
+            && v !== null
+            && v !== ""
+          );
           for (const [k, v] of extras) {
             routePreview += `  ${k}: ${typeof v === "object" ? JSON.stringify(v) : String(v)}\n`;
           }
         }
 
-        if (data.quote) {
-          routePreview += "\n  quote details:\n";
-          const q = data.quote;
-          if (q.provider) routePreview += `    provider:    ${q.provider}\n`;
-          if (q.fee) routePreview += `    fee:         ${q.fee}\n`;
-          if (q.estimatedTime) routePreview += `    est. time:   ${q.estimatedTime}\n`;
-          const qExtras = Object.entries(q).filter(([k]) => !["provider","fee","estimatedTime"].includes(k));
-          for (const [k, v] of qExtras) {
-            routePreview += `    ${k}: ${typeof v === "object" ? JSON.stringify(v) : String(v)}\n`;
+        const selected = liveQuote.selected ?? liveQuote.plan?.feeQuote;
+        const plan = analysis.plan ?? liveQuote.plan ?? {};
+        const decision = plan.intentDecision ?? {};
+        routePreview += "\n  route decision:\n";
+        routePreview += `    preferred:   ${terminalIntent.preferredRoute ?? "auto"}\n`;
+        routePreview += `    selected:    ${plan.routeKind ?? selected?.routeKind ?? decision.selectedRoute ?? "UNKNOWN"}\n`;
+        routePreview += `    reason:      ${decision.reason ?? plan.rationale?.[0] ?? "No reason returned"}\n`;
+        const extraRationale = Array.isArray(plan.rationale) ? plan.rationale.slice(1, 3) : [];
+        for (const reason of extraRationale) routePreview += `    note:        ${reason}\n`;
+        const alternatives = Array.isArray(plan.alternatives) ? plan.alternatives : [];
+        if (alternatives.length > 0) {
+          routePreview += "    alternatives:\n";
+          for (const alt of alternatives.slice(0, 3)) {
+            const why = alt.eligible ? alt.reason : alt.rejectionReasons?.[0] ?? alt.reason;
+            routePreview += `      - ${alt.routeKind}: ${alt.eligible ? "eligible" : "blocked"}${why ? ` - ${why}` : ""}\n`;
           }
         }
+        if (selected) {
+          routePreview += "\n  agent quote:\n";
+          routePreview += `    route:       ${selected.routeKind} (${selected.circleProduct})\n`;
+          routePreview += `    output:      ${selected.estimatedOutputAmount} ${selected.receiptTokenSymbol ?? selected.outputTokenSymbol}\n`;
+          routePreview += `    user pays:   ${selected.userPaysUsd} USDC\n`;
+          routePreview += `    est. time:   ${selected.estimatedTimeSeconds}s\n`;
+        }
 
+        routePreview += "\n  agent stack:\n";
+        routePreview += "    1. AIAssistant           natural-language intent\n";
+        routePreview += `    2. RiskPolicyAgent       ${analysis.policy?.allowed ? "allowed" : "blocked"}\n`;
+        routePreview += "    3. FeeQuoteAgent         compared Gateway / CCTP / BridgeKit / Local\n";
+        routePreview += `    4. RoutePlannerAgent     selected ${analysis.plan?.routeKind ?? "UNKNOWN"}\n`;
+        routePreview += `    5. ProtocolActionAgent   built ${analysis.actionPayload?.executionMode ?? "protocol"} payload\n`;
+        routePreview += "    6. JudgeNarratorAgent    records final receipt after execution\n";
+
+        const blockReason = terminalRouteBlockReason({ quote: liveQuote, analysis });
         routePreview += "\n══════════════════════════════════════\n";
-        routePreview += "  type \"execute\" to confirm this route\n";
-        routePreview += "  type \"cancel\" to discard\n";
+        if (blockReason) {
+          routePreview += `  cannot execute yet: ${blockReason}\n`;
+          routePreview += "  type a follow-up like \"use cctpv2\", \"to Base\", or \"swap to WETH\"\n";
+        } else {
+          routePreview += "  type \"execute\" to open wallet prompts and confirm\n";
+          routePreview += "  type \"cancel\" to discard\n";
+        }
         routePreview += "══════════════════════════════════════";
 
         append(routePreview.slice(0, 3600));
@@ -625,35 +1017,323 @@ export function TerminalView() {
     } catch (err) {
       append(err instanceof Error ? err.message : String(err));
     } finally {
+      setThinkingText("");
       setRunning(false);
     }
   }
 
-  async function executePendingRoute() {
-    if (!pendingRoute) {
+  async function executePendingRoute(routeToExecute = pendingRoute) {
+    if (!routeToExecute) {
       append("no pending route. type a swap/bridge command first.");
       return;
     }
     setRunning(true);
-    append("$ execute\n\nsubmitting route...");
+    setThinkingText("preparing user-controlled execution");
+    append("$ execute\n\nuser-controlled execution starting...");
     try {
-      const res = await fetch(`${API_URL}/intents`, {
+      const intent = routeToExecute.intent;
+      const selected = routeToExecute.quote?.selected ?? routeToExecute.quote?.plan?.feeQuote ?? routeToExecute.analysis?.plan?.feeQuote;
+      const routeKind = selected?.routeKind ?? routeToExecute.analysis?.plan?.routeKind ?? intent.preferredRoute;
+      const blockReason = terminalRouteBlockReason(routeToExecute);
+      if (blockReason) {
+        append(`execution stopped before wallet prompts.\n\n${blockReason}\n\nType a follow-up like "use cctpv2", "use gateway", "to Base", or "swap to WETH" to replan.`);
+        return;
+      }
+      const sourceChain = intent.sourceChain;
+      const sourceChainId = CHAIN_KEY_TO_ID[sourceChain];
+      const metadataPayload: Record<string, unknown> = {
+        ...(intent.metadata ?? {}),
+        sourceWalletAddress: address,
+        evmReceiptWalletAddress: address,
+        solanaAddress: solanaAddress ?? intent.metadata?.solanaAddress,
+        stellarAddress: stellarAddress ?? intent.metadata?.stellarAddress
+      };
+      let paymentHeader: string | undefined;
+      if (sourceChainId && sourceChain !== "SOLANA_DEVNET" && sourceChain !== "STELLAR_TESTNET" && routeKind !== "LOCAL") {
+        paymentHeader = await requestX402PaymentHeader({
+          ...intent,
+          preferredRoute: routeKind,
+          approved: true,
+          metadata: metadataPayload
+        });
+      }
+
+      if (sourceChainId && sourceChain !== "SOLANA_DEVNET" && sourceChain !== "STELLAR_TESTNET") {
+        if (!address) throw new Error("connect EVM wallet first.");
+        if (chain?.id !== sourceChainId) throw new Error(`switch wallet to ${CHAIN_LABEL[sourceChain] ?? sourceChain} first.`);
+        const usdcAddress = USDC_ADDRESSES[sourceChainId];
+        const operatorAddress = (config as any)?.operatorAddress as `0x${string}` | undefined;
+        if (!usdcAddress) throw new Error(`USDC address missing for ${sourceChain}.`);
+        if (routeKind !== "GATEWAY") {
+          if (!operatorAddress) throw new Error("operatorAddress missing from API /config.");
+          const transferAmount = parseUnits(String(selected?.sourceDepositRequiredUsd ?? intent.amount), 6);
+          append(`wallet prompt: transfer ${formatUnits(transferAmount, 6)} USDC to protocol operator\nagent reason: ${routeKind} route uses operator/router funds for bridge + protocol execution; user signs source funding tx.`);
+          setThinkingText("waiting for wallet signature: source USDC transfer");
+          const userDepositTxHash = await writeContractAsync({
+            address: usdcAddress,
+            abi: ERC20_ABI,
+            functionName: "transfer",
+            args: [operatorAddress, transferAmount]
+          });
+          append(`tx submitted: User source transfer\nchain: ${sourceChain}\nhash: ${userDepositTxHash}`);
+          setThinkingText("waiting for source transfer confirmation");
+          if (publicClient) await publicClient.waitForTransactionReceipt({ hash: userDepositTxHash });
+          append(`tx confirmed: User source transfer\nhash: ${userDepositTxHash}`);
+          metadataPayload.userDepositTxHash = userDepositTxHash;
+        }
+      }
+
+      const intentPayload = {
+        ...intent,
+        preferredRoute: routeKind,
+        approved: true,
+        metadata: metadataPayload
+      };
+
+      setThinkingText("submitting intent to orchestrator");
+      let res = await fetch(`${API_URL}/intents`, {
         method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          ...pendingRoute.intent,
-          approved: true
-        })
+        headers: paymentHeader
+          ? { "content-type": "application/json", "Payment-Signature": paymentHeader }
+          : { "content-type": "application/json" },
+        body: JSON.stringify(intentPayload)
       });
+
+      if (res.status === 402) {
+        const fallbackPaymentHeader = await signX402PaymentFromResponse(res);
+        setThinkingText("resubmitting intent with Payment-Signature");
+        res = await fetch(`${API_URL}/intents`, {
+          method: "POST",
+          headers: { "content-type": "application/json", "Payment-Signature": fallbackPaymentHeader },
+          body: JSON.stringify(intentPayload)
+        });
+      }
+
       const data = await res.json();
       if (!res.ok) throw new Error(data?.error ?? data?.message ?? "execution failed");
-      append(`route submitted.\n\ntransaction id: ${data.id ?? "unknown"}\nstatus: ${data.status ?? "pending"}\n\ntrack progress in the Transactions tab or type \"transactions\".`);
+      setThinkingText("orchestrator accepted route");
+      append(`route submitted.\n\nintent id: ${data.id ?? "unknown"}\nstatus: ${data.status ?? "pending"}\n\nstreaming route steps + tx hashes...`);
+      await streamTerminalIntent(data.id);
       setPendingRoute(null);
     } catch (err) {
       append(`execution error: ${err instanceof Error ? err.message : String(err)}\n\nroute is still pending. type \"execute\" to retry or \"cancel\" to discard.`);
     } finally {
+      setThinkingText("");
       setRunning(false);
     }
+  }
+
+  async function requestX402PaymentHeader(intentPayload: Record<string, unknown>) {
+    setThinkingText("requesting x402 payment terms before source funding");
+    const res = await fetch(`${API_URL}/intents`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(intentPayload)
+    });
+    if (res.status !== 402) {
+      const body = await res.text();
+      throw new Error(`Expected x402 payment challenge before source funding, got ${res.status}: ${body.slice(0, 240)}`);
+    }
+    return signX402PaymentFromResponse(res);
+  }
+
+  async function signX402PaymentFromResponse(res: Response) {
+    append("wallet prompt: x402 relayer/API fee signature\nagent reason: paid API execution requires signed USDC authorization; no private key automation.");
+    if (!address || !chain?.id) throw new Error("connect EVM wallet for x402 signature.");
+    setThinkingText("loading x402 payment terms");
+    const challengeHeader = res.headers.get("PAYMENT-REQUIRED");
+    if (!challengeHeader) throw new Error("402 response missing PAYMENT-REQUIRED header.");
+    const liveChallenge = decodeBase64Json(challengeHeader) as any;
+    const requirement = liveChallenge.accepts?.find((item: any) => item.network === `eip155:${chain.id}`);
+    if (!requirement) throw new Error(`x402 network eip155:${chain.id} not accepted.`);
+    append(`x402 settlement target: ${requirement.payTo}\namount: ${formatUnits(BigInt(requirement.amount), 6)} USDC`);
+    await ensureX402GatewayBalance(BigInt(requirement.amount));
+    const typedData = buildGatewayPaymentAuth(address as `0x${string}`, requirement);
+    setThinkingText("waiting for wallet signature: x402 relayer/API payment");
+    const signature = await signTypedDataAsync({
+      domain: typedData.domain,
+      types: typedData.types,
+      primaryType: typedData.primaryType,
+      message: typedData.message
+    });
+    return encodeBase64Json({
+      x402Version: liveChallenge.x402Version,
+      resource: liveChallenge.resource,
+      accepted: requirement,
+      payload: { authorization: typedData.authorization, signature }
+    });
+  }
+
+  async function ensureX402GatewayBalance(amountRaw: bigint) {
+    if (!address) throw new Error("connect EVM wallet for x402 payment.");
+    const arcChainId = CHAIN_KEY_TO_ID.ARC;
+    if (chain?.id !== arcChainId) {
+      throw new Error("x402 is restricted to Arc. Switch wallet to Arc before signing x402 payment.");
+    }
+
+    const readGatewayBalance = async () => {
+      const balanceRes = await fetch(`${API_URL}/gateway/balances/${address}`);
+      const balanceData = balanceRes.ok ? await balanceRes.json() : { balances: [] };
+      const existingRow = Array.isArray(balanceData?.balances)
+        ? balanceData.balances.find((item: any) => item.chain === "ARC" && (item.asset === "USDC" || balanceData.token === "USDC"))
+        : undefined;
+      return parseUnits(String(existingRow?.amount ?? existingRow?.balance ?? "0"), 6);
+    };
+
+    setThinkingText("checking Circle Gateway balance for x402 payment");
+    const existing = await readGatewayBalance();
+    if (existing >= amountRaw) {
+      append(`x402 Gateway balance ready: ${formatUnits(existing, 6)} USDC available`);
+      return;
+    }
+
+    const topUp = amountRaw - existing;
+    const sourceUsdc = USDC_ADDRESSES[arcChainId];
+    if (!sourceUsdc) throw new Error("Arc USDC address missing for x402 top-up.");
+
+    append(`wallet prompt: approve ${formatUnits(topUp, 6)} USDC x402 Gateway top-up`);
+    setThinkingText("waiting for wallet signature: approve x402 top-up");
+    const approveHash = await writeContractAsync({
+      address: sourceUsdc,
+      abi: ERC20_ABI,
+      functionName: "approve",
+      args: [ARC_GATEWAY_WALLET, topUp]
+    });
+    append(`tx submitted: x402 top-up approve\nchain: Arc\nhash: ${approveHash}`);
+    setThinkingText("waiting for x402 top-up approve confirmation");
+    if (publicClient) await publicClient.waitForTransactionReceipt({ hash: approveHash });
+
+    append(`wallet prompt: deposit ${formatUnits(topUp, 6)} USDC into Circle Gateway for x402`);
+    setThinkingText("waiting for wallet signature: deposit x402 top-up");
+    const depositHash = await writeContractAsync({
+      address: ARC_GATEWAY_WALLET,
+      abi: GATEWAY_WALLET_ABI,
+      functionName: "deposit",
+      args: [sourceUsdc, topUp]
+    });
+    append(`tx submitted: x402 Gateway top-up\nchain: Arc\nhash: ${depositHash}`);
+    setThinkingText("waiting for x402 Gateway top-up confirmation");
+    if (publicClient) await publicClient.waitForTransactionReceipt({ hash: depositHash });
+    append(`tx confirmed: x402 Gateway top-up\nhash: ${depositHash}`);
+
+    const deadline = Date.now() + 90000;
+    setThinkingText("waiting for Circle Gateway to index x402 balance");
+    while (Date.now() < deadline) {
+      const indexedBalance = await readGatewayBalance();
+      if (indexedBalance >= amountRaw) {
+        append(`x402 Gateway balance ready: ${formatUnits(indexedBalance, 6)} USDC available`);
+        return;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 3000));
+    }
+    throw new Error("Gateway top-up tx confirmed, but Circle has not indexed the balance yet. Retry execute in a minute; no extra top-up needed.");
+  }
+
+  async function revisePendingRoute(message: string, executeAfter = false) {
+    if (!pendingRoute) return false;
+    const patch = terminalRoutePatch(message);
+    if (!patch) return false;
+
+    setRunning(true);
+    setThinkingText("replanning previous route with follow-up");
+    append(`$ ${message}\n\nupdating previous route...`);
+    try {
+      const updatedIntent = normalizeTerminalIntent(mergeTerminalIntent(pendingRoute.intent, patch), {
+        address,
+        solanaAddress,
+        stellarAddress,
+        connectedChain: chainKeyFromId(chain?.id)
+      });
+      const validationError = validateTerminalIntent(updatedIntent);
+      if (validationError) throw new Error(validationError);
+      const [analysisRes, quoteRes] = await Promise.all([
+        fetch(`${API_URL}/agents/analyze`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify(updatedIntent)
+        }),
+        fetch(`${API_URL}/quotes`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ ...updatedIntent, quoteOnly: true })
+        })
+      ]);
+      const analysis = await analysisRes.json();
+      const liveQuote = await quoteRes.json();
+      if (!analysisRes.ok) throw new Error(analysis?.error ?? "agent analysis failed");
+      if (!quoteRes.ok) throw new Error(liveQuote?.error ?? "route quote failed");
+      const updatedRoute = {
+        intent: updatedIntent,
+        quote: liveQuote,
+        analysis,
+        explanation: "Follow-up applied to previous route."
+      };
+      setPendingRoute(updatedRoute);
+
+      const selected = liveQuote.selected ?? liveQuote.plan?.feeQuote;
+      const plan = analysis.plan ?? liveQuote.plan ?? {};
+      const blockReason = terminalRouteBlockReason(updatedRoute);
+      append([
+        "updated route preview",
+        `source:    ${CHAIN_LABEL[updatedIntent.sourceChain] ?? updatedIntent.sourceChain}`,
+        `dest:      ${CHAIN_LABEL[updatedIntent.destinationChain] ?? updatedIntent.destinationChain}`,
+        `protocol:  ${updatedIntent.protocol}`,
+        `amount:    ${updatedIntent.amount} ${updatedIntent.asset ?? "USDC"}`,
+        `preferred: ${updatedIntent.preferredRoute ?? "auto"}`,
+        `selected:  ${plan.routeKind ?? selected?.routeKind ?? "UNKNOWN"}`,
+        `reason:    ${plan.intentDecision?.reason ?? plan.rationale?.[0] ?? "No reason returned"}`,
+        selected ? `quote:     ${selected.estimatedOutputAmount} ${selected.receiptTokenSymbol ?? selected.outputTokenSymbol}, user pays ${selected.userPaysUsd} USDC` : "",
+        blockReason ? `status:    cannot execute yet - ${blockReason}` : `status:    ready for execute`
+      ].filter(Boolean).join("\n"));
+
+      if (executeAfter) {
+        await executePendingRoute(updatedRoute);
+      }
+      return true;
+    } catch (err) {
+      append(`follow-up error: ${err instanceof Error ? err.message : String(err)}`);
+      return true;
+    } finally {
+      setThinkingText("");
+      setRunning(false);
+    }
+  }
+
+  async function streamTerminalIntent(intentId: string) {
+    if (!intentId) return;
+    let lastStatus = "";
+    const seen = new Set<string>();
+    for (let i = 0; i < 240; i++) {
+      setThinkingText(`polling intent ${intentId}`);
+      const receiptRes = await fetch(`${API_URL}/intents/${intentId}`);
+      const receipt = await receiptRes.json();
+      if (receipt.status !== lastStatus) {
+        lastStatus = receipt.status;
+        append(`step: ${terminalStepForStatus(receipt.status, receipt)}`);
+      }
+
+      const statusRes = await fetch(`${API_URL}/transactions/${intentId}/status`);
+      if (statusRes.ok) {
+        const enriched = await statusRes.json();
+        for (const tx of enriched.onChain?.transactions ?? []) {
+          const key = `${tx.label}:${tx.hash}:${tx.status?.confirmed}`;
+          if (seen.has(key)) continue;
+          seen.add(key);
+          append(`tx: ${tx.label}\nchain: ${CHAIN_LABEL[tx.chain] ?? tx.chain}\nhash: ${tx.hash}\nstatus: ${tx.status?.confirmed ? "confirmed" : tx.status?.found ? "found" : "pending"}`);
+        }
+      }
+
+      if (["succeeded", "failed", "needs_approval"].includes(receipt.status)) {
+        setThinkingText("");
+        const outSymbol = receipt.protocolReceipt?.amountOutSymbol ?? receipt.protocolReceipt?.tokenOutSymbol ?? "";
+        const outAmount = receipt.protocolReceipt?.amountOutFormatted;
+        append(`final: ${receipt.status}${outAmount ? `\noutput: ${outAmount} ${outSymbol}` : ""}${receipt.nftReceipt?.tokenId ? `\nArc receipt NFT: #${receipt.nftReceipt.tokenId}` : ""}${receipt.error ? `\nerror: ${receipt.error}` : ""}`);
+        return;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 2500));
+    }
+    setThinkingText("");
+    append(`stream timeout: intent ${intentId} still running. type "transactions" for latest status.`);
   }
 
   async function runCommand(raw: string) {
@@ -670,6 +1350,10 @@ export function TerminalView() {
         return;
       case "execute":
       case "confirm":
+        if (pendingRoute && terminalRoutePatch(arg)) {
+          await revisePendingRoute(input, true);
+          return;
+        }
         await executePendingRoute();
         return;
       case "cancel":
@@ -791,9 +1475,11 @@ export function TerminalView() {
         setLines(["Chrysalis terminal ready.", "Type help to see commands."]);
         return;
       default: {
-        // If user typed something while a route is pending, warn them
+        if (pendingRoute && await revisePendingRoute(input)) {
+          return;
+        }
         if (pendingRoute && !["execute", "confirm", "cancel", "discard"].includes(name.toLowerCase())) {
-          append(`$ ${input}\n\nyou have a pending route. type "execute" to confirm or "cancel" to discard before building a new route.`);
+          await askAI(input, pendingRoute.intent);
           return;
         }
         let cleanInput = input;
@@ -812,7 +1498,7 @@ export function TerminalView() {
     <div className="terminal-layout">
       <section className="os-window terminal-window">
         <div className="window-title"><span /><span /><span /><strong>terminal</strong></div>
-        <pre ref={outputRef} className="terminal-output">{lines.join("\n\n")}</pre>
+        <pre ref={outputRef} className="terminal-output">{renderedLines.join("\n\n")}</pre>
         <form className="terminal-prompt" onSubmit={(e) => {
           e.preventDefault();
           void runCommand(command);

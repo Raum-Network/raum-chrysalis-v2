@@ -218,4 +218,7 @@ export interface AppConfig {
   operatorAddress?: string;
   solanaOperatorAddress?: string;
   stellarOperatorAddress?: string;
+  nanopaymentFeeReceiver?: string;
+  nanopaymentFeeReceiverSource?: string;
+  x402AcceptedNetworks?: string[];
 }

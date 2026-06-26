@@ -105,6 +105,15 @@ function isBridgeOnlyProtocol(protocol: string) {
   return protocol.endsWith("_USDC_TRANSFER");
 }
 
+function fallbackGasUsd(chainKey: string): number {
+  if (chainKey === "ARC") return env.gasUsdArc;
+  if (chainKey === "BASE_SEPOLIA") return env.gasUsdBaseSepolia;
+  if (chainKey === "ETHEREUM_SEPOLIA") return env.gasUsdEthereumSepolia;
+  if (chainKey === "SOLANA_DEVNET") return env.gasUsdSolanaDevnet;
+  if (chainKey === "STELLAR_TESTNET") return env.gasUsdStellarTestnet;
+  return 0.001;
+}
+
 function isRateLimitMessage(message: string) {
   return /429|rate.?limit|too many requests|request limit/i.test(message);
 }
@@ -267,7 +276,7 @@ export class RouteSimulationService {
           chain: destination,
           router: destinationRouter,
           operator: operator as Hex,
-          beneficiary: (input.recipient ?? operator) as Hex,
+          beneficiary: this.hexAddress(input.recipient) ?? operator as Hex,
           usdc: destinationToken,
           bridgedAmountRaw: destinationRouterAmountRawDestDecimals,
           adapterData: payload.adapterData ?? "0x",
@@ -653,41 +662,53 @@ export class RouteSimulationService {
     sourceAmountRaw: bigint;
   }): Promise<bigint> {
     const currentBalance = await this.erc20Balance(input.sourceRpc, input.sourceToken, input.sourceWallet);
-    const balanceOverride = currentBalance >= input.sourceAmountRaw
-      ? undefined
-      : await this.balanceOverride(input.sourceRpc, input.sourceToken, input.sourceWallet, input.sourceAmountRaw);
+    let balanceOverride: Record<Hex, { stateDiff: StateDiff }> | undefined;
+    if (currentBalance < input.sourceAmountRaw) {
+      try {
+        balanceOverride = await this.balanceOverride(input.sourceRpc, input.sourceToken, input.sourceWallet, input.sourceAmountRaw);
+      } catch {
+        return input.routeKind === "GATEWAY" ? 125_000n : 65_000n;
+      }
+    }
 
     if (input.routeKind === "GATEWAY") {
-      const gateway = input.source.circle?.gateway?.wallet as Hex | undefined;
+      const gateway = this.hexAddress(input.source.circle?.gateway?.wallet);
       if (!gateway) throw new Error(`Gateway wallet missing on ${input.source.key}.`);
-      const approve = await this.estimateGas(input.sourceRpc, {
-        from: input.sourceWallet,
-        to: input.sourceToken,
-        data: encodeFunctionData({ abi: erc20Abi, functionName: "approve", args: [gateway, input.sourceAmountRaw] })
-      }, balanceOverride);
-      
-      const allowanceOverride = await this.allowanceOverride(input.sourceRpc, input.sourceToken, input.sourceWallet, gateway, input.sourceAmountRaw);
-      // Combine allowance override and balance override
-      const combinedOverride = {
-        ...(balanceOverride ?? {}),
-        ...(allowanceOverride ?? {})
-      };
-      
-      const deposit = await this.estimateGas(input.sourceRpc, {
-        from: input.sourceWallet,
-        to: gateway,
-        data: encodeFunctionData({ abi: gatewayWalletAbi, functionName: "deposit", args: [input.sourceToken, input.sourceAmountRaw] })
-      }, combinedOverride);
-      return approve + deposit;
+      try {
+        const approve = await this.estimateGas(input.sourceRpc, {
+          from: input.sourceWallet,
+          to: input.sourceToken,
+          data: encodeFunctionData({ abi: erc20Abi, functionName: "approve", args: [gateway, input.sourceAmountRaw] })
+        }, balanceOverride);
+        
+        const allowanceOverride = await this.allowanceOverride(input.sourceRpc, input.sourceToken, input.sourceWallet, gateway, input.sourceAmountRaw);
+        const combinedOverride = {
+          ...(balanceOverride ?? {}),
+          ...(allowanceOverride ?? {})
+        };
+        
+        const deposit = await this.estimateGas(input.sourceRpc, {
+          from: input.sourceWallet,
+          to: gateway,
+          data: encodeFunctionData({ abi: gatewayWalletAbi, functionName: "deposit", args: [input.sourceToken, input.sourceAmountRaw] })
+        }, combinedOverride);
+        return approve + deposit;
+      } catch {
+        return 125_000n;
+      }
     }
 
     const operator = env.operatorPrivateKey ? privateKeyToAccount(env.operatorPrivateKey as Hex).address : undefined;
     if (!operator) throw new Error("OPERATOR_PRIVATE_KEY is required to simulate the source transfer.");
-    return this.estimateGas(input.sourceRpc, {
-      from: input.sourceWallet,
-      to: input.sourceToken,
-      data: encodeFunctionData({ abi: erc20Abi, functionName: "transfer", args: [operator, input.sourceAmountRaw] })
-    }, balanceOverride);
+    try {
+      return await this.estimateGas(input.sourceRpc, {
+        from: input.sourceWallet,
+        to: input.sourceToken,
+        data: encodeFunctionData({ abi: erc20Abi, functionName: "transfer", args: [operator, input.sourceAmountRaw] })
+      }, balanceOverride);
+    } catch {
+      return 65_000n;
+    }
   }
 
   private async simulateDestinationGas(input: {
@@ -908,11 +929,15 @@ export class RouteSimulationService {
 
   private async nativeGasEstimate(chain: any, rpcUrl: string, gasUnits: bigint, prices: { ethereum: number; solana: number; stellar: number }): Promise<NativeGasEstimate> {
     const gasPriceWei = await liveQuoteService.getLiveGasPriceWei(rpcUrl);
-    if (gasPriceWei <= 0n) throw new Error(`RPC did not return gas price for ${chain.key}.`);
     const token = String(chain.nativeCurrency?.symbol ?? "ETH").toUpperCase();
     const decimals = Number(chain.nativeCurrency?.decimals ?? 18);
-    const amount = Number(gasUnits * gasPriceWei) / 10 ** decimals;
     const nativeUsd = token === "USDC" || token === "EURC" ? 1 : prices.ethereum;
+    if (gasPriceWei <= 0n) {
+      const amountUsd = fallbackGasUsd(String(chain.key));
+      const amount = nativeUsd > 0 ? amountUsd / nativeUsd : 0;
+      return { amount, token, amountUsd, live: false };
+    }
+    const amount = Number(gasUnits * gasPriceWei) / 10 ** decimals;
     return { amount, token, amountUsd: amount * nativeUsd, live: true };
   }
 
@@ -1081,7 +1106,7 @@ export class RouteSimulationService {
   }
 
   private hexAddress(value: unknown): Hex | undefined {
-    return typeof value === "string" && /^0x[a-fA-F0-9]{40}$/.test(value) ? value as Hex : undefined;
+    return typeof value === "string" && /^0x[a-fA-F0-9]{40}$/.test(value) ? value.toLowerCase() as Hex : undefined;
   }
 
   private tokenMeta(chain: any, address: Hex, fallbackSymbol: string, fallbackDecimals: number): { symbol: string; decimals: number } {

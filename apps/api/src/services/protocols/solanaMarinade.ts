@@ -322,6 +322,8 @@ export class MarinadeService {
             })]
           : [];
 
+        const amountOutRaw = (result as any).amountOut as string | undefined;
+
         return {
           status: result.signature ? "succeeded" : "already_executed",
           executable: true,
@@ -333,6 +335,8 @@ export class MarinadeService {
           solanaTxHash: result.signature || undefined,
           feeLines,
           actualFeeUsd: sumFeeLinesUsd(feeLines),
+          amountOutRaw,
+          amountOutFormatted: amountOutRaw ? formatUnitsDecimal(BigInt(amountOutRaw), 9) : undefined,
           amountOutSymbol: "mSOL",
           receiptTokenSymbol: "mSOL",
           ...(isDepositWithSwap ? {} : { receiptPda: (result as any).receiptPda }),

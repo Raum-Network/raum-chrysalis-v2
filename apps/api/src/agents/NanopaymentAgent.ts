@@ -52,17 +52,25 @@ export class NanopaymentAgent {
   private supportedKinds?: SupportedKind[];
 
   readonly sellerAddress: Address;
+  readonly feeReceiverSource: "RAUM_FEE_RECEIVER_ADDRESS" | "NANO_PAYMENT_SELLER_ADDRESS" | "AGENT_PRIVATE_KEY" | "OPERATOR_PRIVATE_KEY";
 
   constructor() {
+    const configuredFeeReceiver = process.env.RAUM_FEE_RECEIVER_ADDRESS;
     const configuredSeller = process.env.NANO_PAYMENT_SELLER_ADDRESS;
-    if (configuredSeller && isAddress(configuredSeller)) {
+    if (configuredFeeReceiver && isAddress(configuredFeeReceiver)) {
+      this.sellerAddress = getAddress(configuredFeeReceiver);
+      this.feeReceiverSource = "RAUM_FEE_RECEIVER_ADDRESS";
+    } else if (configuredSeller && isAddress(configuredSeller)) {
       this.sellerAddress = getAddress(configuredSeller);
+      this.feeReceiverSource = "NANO_PAYMENT_SELLER_ADDRESS";
     } else if (env.agentPrivateKey) {
       this.sellerAddress = privateKeyToAccount(env.agentPrivateKey as `0x${string}`).address;
+      this.feeReceiverSource = "AGENT_PRIVATE_KEY";
     } else if (env.operatorPrivateKey) {
       this.sellerAddress = privateKeyToAccount(env.operatorPrivateKey as `0x${string}`).address;
+      this.feeReceiverSource = "OPERATOR_PRIVATE_KEY";
     } else {
-      throw new Error("Set NANO_PAYMENT_SELLER_ADDRESS, AGENT_PRIVATE_KEY, or OPERATOR_PRIVATE_KEY before enabling live nanopayments.");
+      throw new Error("Set RAUM_FEE_RECEIVER_ADDRESS, NANO_PAYMENT_SELLER_ADDRESS, AGENT_PRIVATE_KEY, or OPERATOR_PRIVATE_KEY before enabling live nanopayments.");
     }
   }
 
@@ -80,9 +88,18 @@ export class NanopaymentAgent {
   }
 
   acceptedNetworkIds(): string[] {
+    const configuredNetworks = (process.env.X402_ACCEPTED_NETWORKS ?? "")
+      .split(",")
+      .map((item) => item.trim())
+      .filter(Boolean);
+    const allowed = configuredNetworks.length > 0
+      ? new Set(configuredNetworks.map((item) => item.startsWith("eip155:") ? item : networkIdForChainKey(item)).filter(Boolean))
+      : undefined;
+
     return Object.values(chainConfig)
       .filter((chain: any) => chain.vm === "evm" && chain.circle?.gateway?.nanopayments && chain.chainId)
-      .map((chain: any) => `eip155:${chain.chainId}`);
+      .map((chain: any) => `eip155:${chain.chainId}`)
+      .filter((network) => !allowed || allowed.has(network));
   }
 
   async createPaymentRequired(path: string): Promise<PaymentRequiredChallenge> {
@@ -116,10 +133,12 @@ export class NanopaymentAgent {
       price: resource?.priceUsdc ?? "0",
       amount: priceToUsdcUnits(resource?.priceUsdc ?? "0").toString(),
       payTo: this.sellerAddress,
+      feeReceiver: this.sellerAddress,
+      feeReceiverSource: this.feeReceiverSource,
       accepts: paymentRequired.accepts,
       paymentRequired,
       paymentRequiredHeader: Buffer.from(JSON.stringify(paymentRequired)).toString("base64"),
-      memo: "Sign a GatewayWalletBatched EIP-712 authorization from the connected wallet, then retry the paid endpoint with the Payment-Signature header."
+      memo: "Sign a GatewayWalletBatched EIP-712 authorization from the connected wallet. Circle x402 settles the relayer/API fee to the Raum fee receiver, then retries the paid endpoint with the Payment-Signature header."
     };
   }
 
@@ -174,6 +193,11 @@ export function priceToUsdcUnits(price: string): bigint {
   const [whole, fraction = ""] = price.split(".");
   const padded = `${fraction}000000`.slice(0, 6);
   return BigInt(whole || "0") * 1_000_000n + BigInt(padded || "0");
+}
+
+function networkIdForChainKey(chainKey: string): string | undefined {
+  const chain = Object.values(chainConfig).find((candidate: any) => candidate.key === chainKey) as any;
+  return chain?.chainId ? `eip155:${chain.chainId}` : undefined;
 }
 
 export const nanopaymentAgent = new NanopaymentAgent();

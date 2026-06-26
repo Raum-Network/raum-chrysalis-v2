@@ -820,10 +820,11 @@ export default function FlowBuilder() {
   }, [lastWalletError]);
 
   useEffect(() => {
-    if (sourceChain === "ARC" && destinationChain === "ARC") {
-      setDestinationChain("BASE_SEPOLIA");
+    if (sourceChain === destinationChain) {
+      const fallback = chains.find((chain) => chain.key !== sourceChain)?.key ?? "ARC";
+      setDestinationChain(fallback);
     }
-  }, [sourceChain, destinationChain]);
+  }, [sourceChain, destinationChain, chains]);
 
   useEffect(() => {
     setSuggestedSourceChain(null);
@@ -1094,7 +1095,8 @@ export default function FlowBuilder() {
       
       // Calculate total amount needed on source chain
       const transferAmount = parseUnits(selectedQuote.sourceDepositRequiredUsd ?? amount, 6);
-      // x402 relayer fee (0.05 USDC) for all non-LOCAL routes on EVM chains with Gateway
+      // x402 relayer/API fee (0.05 USDC) for all non-LOCAL routes on EVM chains.
+      // The user may top up Circle Gateway balance first; x402 then settles to the Raum fee receiver.
       const X402_FEE_USDC = 50000n;
       const needsX402Fee = routeKind !== "LOCAL" && sourceChain !== "SOLANA_DEVNET" && sourceChain !== "STELLAR_TESTNET";
       let totalAmountNeeded = transferAmount + (needsX402Fee ? X402_FEE_USDC : 0n);
@@ -1233,9 +1235,9 @@ export default function FlowBuilder() {
             await new Promise(r => setTimeout(r, 5000));
           }
 
-          // Deposit x402 relayer fee into Gateway wallet on source chain
+          // Top up Circle Gateway balance so the x402 relayer/API payment can settle to the Raum fee receiver.
           if (needsX402Fee) {
-            console.log(`[FlowBuilder] Checking Gateway balance for x402 fee deposit...`);
+            console.log(`[FlowBuilder] Checking Gateway balance for x402 relayer/API payment...`);
             const gatewayBalance = await client.getGatewayBalance(address!);
             const existingRow = gatewayBalance.balances?.find((b: any) =>
               b.chain === sourceChain && (b.asset === "USDC" || gatewayBalance.token === "USDC")
@@ -1247,7 +1249,7 @@ export default function FlowBuilder() {
               const gatewayWallet = "0x0077777d7EBA4688BDeF3E311b846F25870A19B9";
               const sourceUsdc = usdcAddress as `0x${string}`;
 
-              console.log(`[FlowBuilder] Approving GatewayWallet (${gatewayWallet}) for ${Number(feeDeposit) / 1e6} USDC x402 fee...`);
+              console.log(`[FlowBuilder] Approving GatewayWallet (${gatewayWallet}) for ${Number(feeDeposit) / 1e6} USDC x402 payment top-up...`);
               gatewayApproveTxHash = await writeContractAsync({
                 address: sourceUsdc,
                 abi: ERC20_ABI,
@@ -1256,7 +1258,7 @@ export default function FlowBuilder() {
               });
               if (publicClient) await publicClient.waitForTransactionReceipt({ hash: gatewayApproveTxHash });
 
-              console.log(`[FlowBuilder] Depositing ${Number(feeDeposit) / 1e6} USDC x402 fee into GatewayWallet...`);
+              console.log(`[FlowBuilder] Topping up ${Number(feeDeposit) / 1e6} USDC Gateway balance for x402 payment settlement...`);
               gatewayDepositTxHash = await writeContractAsync({
                 address: gatewayWallet,
                 abi: GATEWAY_WALLET_ABI,
@@ -1265,7 +1267,7 @@ export default function FlowBuilder() {
               });
               if (publicClient) await publicClient.waitForTransactionReceipt({ hash: gatewayDepositTxHash });
             } else {
-              console.log(`[FlowBuilder] Existing Gateway balance (${Number(existingGatewayBalance) / 1e6} USDC) covers x402 fee; skipping deposit.`);
+              console.log(`[FlowBuilder] Existing Gateway balance (${Number(existingGatewayBalance) / 1e6} USDC) covers x402 payment; skipping top-up.`);
             }
           }
         } else if (sourceVm === "svm") {
@@ -1350,7 +1352,7 @@ export default function FlowBuilder() {
         if (!address || !connectedChainId) {
           setLoading(null);
           stopPolling();
-          return setError("This route requires an EVM relayer-fee signature. Connect an EVM wallet with RainbowKit and retry.");
+          return setError("This route requires an EVM relayer/API fee signature. Connect an EVM wallet with RainbowKit and retry.");
         }
         const challengeHeader = res.headers.get("PAYMENT-REQUIRED");
         if (!challengeHeader) throw new Error("402 Response missing PAYMENT-REQUIRED header.");
@@ -1359,7 +1361,7 @@ export default function FlowBuilder() {
         if (!requirement) {
             setLoading(null);
             stopPolling();
-            return setError(`This route requires a $0.05 USDC relayer nanopayment, but your connected network (Chain ID: ${connectedChainId}) is not supported for x402 signatures. Switch to Arc Testnet, Base Sepolia, or Ethereum Sepolia.`);
+            return setError(`This route requires a $0.05 USDC relayer/API nanopayment, but your connected network (Chain ID: ${connectedChainId}) is not supported for x402 signatures. Switch to Arc Testnet, Base Sepolia, or Ethereum Sepolia.`);
         }
         setLoading("signing_nanopayment");
         try {
@@ -1718,8 +1720,8 @@ export default function FlowBuilder() {
               <div className="select-wrap">
                 <select value={sourceChain} onChange={(e: any) => setSourceChain(e.target.value)} className="minimal-select">
                   {chains.map((c) => (
-                    <option key={c.key} value={c.key} disabled={Boolean(DISABLED_SOURCE_CHAIN_REASON[c.key]) || (destinationChain === "ARC" && c.key === "ARC")}>
-                      {DISABLED_SOURCE_CHAIN_REASON[c.key] ? `${c.name} (source unavailable)` : destinationChain === "ARC" && c.key === "ARC" ? `${c.name} (disabled for Arc-to-Arc)` : c.name}
+                    <option key={c.key} value={c.key} disabled={Boolean(DISABLED_SOURCE_CHAIN_REASON[c.key]) || c.key === destinationChain}>
+                      {DISABLED_SOURCE_CHAIN_REASON[c.key] ? `${c.name} (source unavailable)` : c.key === destinationChain ? `${c.name} (disabled for same-chain)` : c.name}
                     </option>
                   ))}
                 </select>
@@ -1741,8 +1743,8 @@ export default function FlowBuilder() {
               <div className="select-wrap">
                 <select value={destinationChain} onChange={(e: any) => setDestinationChain(e.target.value)} className="minimal-select">
                   {chains.map((c) => (
-                    <option key={c.key} value={c.key} disabled={sourceChain === "ARC" && c.key === "ARC"}>
-                      {sourceChain === "ARC" && c.key === "ARC" ? `${c.name} (disabled for Arc-to-Arc)` : c.name}
+                    <option key={c.key} value={c.key} disabled={c.key === sourceChain}>
+                      {c.key === sourceChain ? `${c.name} (disabled for same-chain)` : c.name}
                     </option>
                   ))}
                 </select>
