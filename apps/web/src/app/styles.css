@@ -3626,6 +3626,7 @@ h1 {
 .retro-modes,
 .retro-chains,
 .retro-protocols,
+.retro-faq,
 .retro-features,
 .retro-flow {
   display: grid;
@@ -3645,6 +3646,10 @@ h1 {
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
+.retro-faq {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
 .retro-features,
 .retro-flow {
   grid-template-columns: 1fr;
@@ -3653,6 +3658,7 @@ h1 {
 .retro-modes article,
 .retro-chains article,
 .retro-protocols article,
+.retro-faq article,
 .retro-features article,
 .retro-flow article {
   border: 2px solid var(--r-line);
@@ -3663,6 +3669,10 @@ h1 {
 
 .retro-modes article {
   padding: 32px;
+}
+
+.retro-faq article {
+  padding: 24px;
 }
 
 .retro-modes article > span,
@@ -3685,7 +3695,8 @@ h1 {
 
 .retro-modes h2,
 .retro-chains h3,
-.retro-protocols h3 {
+.retro-protocols h3,
+.retro-faq h2 {
   margin: 0 0 12px;
   color: var(--r-ink);
   font-family: 'Bebas Neue', sans-serif;
@@ -3697,6 +3708,7 @@ h1 {
 .retro-features p,
 .retro-flow p,
 .retro-protocols p,
+.retro-faq p,
 .retro-chains p,
 .retro-closing p {
   color: #55525f;
@@ -4173,7 +4185,8 @@ h1 {
   .retro-window-grid,
   .retro-modes,
   .retro-chains,
-  .retro-protocols { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .retro-protocols,
+  .retro-faq { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .retro-features article,
   .retro-flow article { grid-template-columns: 1fr; }
   .retro-nav > div a:not(.nav-cta) { display: none; }
@@ -4189,7 +4202,8 @@ h1 {
   .retro-window-grid,
   .retro-modes,
   .retro-chains,
-  .retro-protocols { grid-template-columns: 1fr; }
+  .retro-protocols,
+  .retro-faq { grid-template-columns: 1fr; }
   .mini-window { position: static; width: auto; margin-top: 12px; transform: none !important; }
   .chain-hero-art { min-height: auto; }
   .chain-window { position: relative; inset: auto; width: auto; margin-top: 14px; transform: none; }
@@ -6260,6 +6274,7 @@ h1 {
 .retro-site.dark .retro-modes article,
 .retro-site.dark .retro-chains article,
 .retro-site.dark .retro-protocols article,
+.retro-site.dark .retro-faq article,
 .retro-site.dark .retro-features article,
 .retro-site.dark .retro-flow article {
   background: #1c1c2b !important;
@@ -6271,6 +6286,7 @@ h1 {
 .retro-site.dark .retro-features p,
 .retro-site.dark .retro-flow p,
 .retro-site.dark .retro-protocols p,
+.retro-site.dark .retro-faq p,
 .retro-site.dark .retro-chains p,
 .retro-site.dark .retro-closing p {
   color: #a1a1b5 !important;

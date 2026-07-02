@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useState, useEffect } from "react";
+import { faqItems, faqJsonLd, organizationJsonLd, softwareJsonLd, websiteJsonLd } from "../lib/seo";
 
 const marqueeItems = [
   "CCTP V2",
@@ -180,6 +181,7 @@ function ChainHeroArt() {
 export default function Page() {
   const marquee = marqueeItems.concat(marqueeItems);
   const [theme, setTheme] = useState("light");
+  const structuredData = [organizationJsonLd, websiteJsonLd, softwareJsonLd, faqJsonLd];
 
   // Load theme preference on mount
   useEffect(() => {
@@ -199,6 +201,13 @@ export default function Page() {
 
   return (
     <main className={`retro-site${theme === "dark" ? " dark" : ""}`}>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify(structuredData).replace(/</g, "\\u003c")
+        }}
+      />
+
       {/* Ambient Metamorphosis Background */}
       <div className="ambient-metamorphosis-container" aria-hidden="true">
         {/* Ambient Random Translucent Butterflies flying across the whole website */}
@@ -284,6 +293,7 @@ export default function Page() {
           <a href="#modes">Modes</a>
           <a href="#chains">Chains</a>
           <a href="#protocols">Protocols</a>
+          <a href="#answers">Answers</a>
           <a href="#nanopay">Nanopay</a>
           <button
             type="button"
@@ -369,6 +379,24 @@ export default function Page() {
                 {["x402 Protocol", "GatewayWalletBatched", "Payment-Signature", "Execution gating", "AI resources", "Per-call billing"].map((tag) => <small key={tag}>{tag}</small>)}
               </div>
             </article>
+          </div>
+        </div>
+      </section>
+
+      <section className="retro-section" id="answers">
+        <div className="retro-section-inner">
+          <p className="retro-kicker">Search Answers</p>
+          <p className="retro-statement">
+            <strong>Quick answers for users and search engines.</strong><br />
+            Chrysalis V2 is a Raum Network app for cross-chain USDC transfer, Circle Gateway routing, CCTP V2 settlement, x402 nanopayments, and protocol execution.
+          </p>
+          <div className="retro-faq">
+            {faqItems.map((item) => (
+              <article key={item.question}>
+                <h2>{item.question}</h2>
+                <p>{item.answer}</p>
+              </article>
+            ))}
           </div>
         </div>
       </section>

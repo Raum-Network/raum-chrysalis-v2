@@ -1,0 +1,25 @@
+# Chrysalis V2
+
+> Cross-chain USDC execution and x402 nanopayment app from Raum Network.
+
+Chrysalis V2 routes USDC across Arc Testnet, Base Sepolia, Ethereum Sepolia, Solana Devnet, and Stellar Testnet. It compares Circle Gateway, CCTP V2, BridgeKit, and local routes, then executes into configured DeFi adapters such as Uniswap, Morpho, Aave, Marinade, Raydium, and Aquarius.
+
+Useful pages:
+
+- Homepage: https://raum.network/
+- App dashboard: https://raum.network/app
+- Execute routes: https://raum.network/app/execute
+- Transactions: https://raum.network/app/transactions
+- Receipts: https://raum.network/app/receipts
+- Operator terminal: https://raum.network/app/terminal
+- GitHub: https://github.com/raum-network
+
+Primary topics:
+
+- Cross-chain USDC routing
+- Circle Gateway
+- CCTP V2
+- x402 nanopayments
+- Bridge + execute flows
+- DeFi protocol adapters
+- Arc receipt NFTs
