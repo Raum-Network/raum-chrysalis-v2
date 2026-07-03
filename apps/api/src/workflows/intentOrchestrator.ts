@@ -11,6 +11,7 @@ import { GatewayService } from "../services/bridge/gatewayService.js";
 import { CctpService } from "../services/bridge/cctpService.js";
 import { ProtocolExecutorRegistry } from "../services/protocols/ProtocolExecutorRegistry.js";
 import { arcReceiptMinter } from "../services/receipts/arcReceiptMinter.js";
+import { intentTraceRegistry, mergeTraceRegistryReceipt, type TraceWrite } from "../services/trace/intentTraceRegistry.js";
 import { CircleBridgeKitService } from "../services/bridge/circleBridgeKit.js";
 import { store } from "../store/memory.js";
 import { CreateIntentInput, FeeLineItem, IntentReceipt, RoutePlan } from "../types.js";
@@ -109,15 +110,19 @@ export class IntentOrchestrator {
       let receipt = await store.get(id);
       if (!receipt) return;
 
+      await this.appendTraceWrites(id, () => intentTraceRegistry.registerIntent(receipt!));
+
       let sourceMetadataFeeLines: FeeLineItem[] = [];
       try {
         sourceMetadataFeeLines = await this.collectSourceMetadataFeeLines(receipt);
+        await this.appendTraceWrites(id, () => intentTraceRegistry.recordSourceTransactions(receipt!));
       } catch (txErr) {
         console.error(`[Orchestrator] Error verifying source metadata transactions:`, txErr);
-        await store.update(id, {
+        const failedReceipt = await store.update(id, {
           status: "failed",
           error: `Source transaction verification failed: ${txErr instanceof Error ? txErr.message : String(txErr)}`
         });
+        await this.appendTraceWrites(id, () => intentTraceRegistry.updateStatus(failedReceipt, "failed"));
         return;
       }
 
@@ -156,6 +161,7 @@ export class IntentOrchestrator {
           actualFeeUsd: sumFeeLinesUsd(bridgeFeeLines)
         };
       }
+      await this.appendTraceWrites(id, () => intentTraceRegistry.recordBridge(receipt!, bridgeReceipt));
 
       // If bridge failed, stop — the router has no USDC to execute with
       const bridgeStatus = String(bridgeReceipt.status ?? "");
@@ -163,11 +169,12 @@ export class IntentOrchestrator {
       if (bridgeFailed) {
         const reason = String(bridgeReceipt.reason ?? bridgeReceipt.stellarMessage ?? bridgeReceipt.solanaMessage ?? bridgeReceipt.message ?? "Bridge step failed.");
         console.error(`[Orchestrator] Bridge failed (${bridgeStatus}): ${reason}`);
-        await store.update(id, {
+        const failedReceipt = await store.update(id, {
           bridgeReceipt,
           status: "failed",
           error: `Bridge failed: ${reason}`
         });
+        await this.appendTraceWrites(id, () => intentTraceRegistry.updateStatus(failedReceipt, "failed"));
         return;
       }
 
@@ -214,6 +221,7 @@ export class IntentOrchestrator {
         }
       };
       const protocolReceipt = await this.executor.execute(analysis.plan, actionPayload);
+      await this.appendTraceWrites(id, () => intentTraceRegistry.recordProtocol(receipt!, protocolReceipt));
 
       // Check if protocol execution actually succeeded on-chain
       const protocolStatus = String(protocolReceipt.status ?? "");
@@ -226,7 +234,8 @@ export class IntentOrchestrator {
         (protocolReceipt.executable === false && !protocolTxHash)
       ) {
         const msg = String(protocolReceipt.note ?? "Protocol execution was not submitted on-chain.");
-        await store.update(id, { protocolReceipt, bridgeReceipt, status: "failed", error: msg });
+        const failedReceipt = await store.update(id, { protocolReceipt, bridgeReceipt, status: "failed", error: msg });
+        await this.appendTraceWrites(id, () => intentTraceRegistry.updateStatus(failedReceipt, "failed"));
         return;
       }
 
@@ -234,6 +243,8 @@ export class IntentOrchestrator {
 
       // Mint on-chain receipt NFT on Arc Testnet (best-effort, but record the outcome before success).
       const nftReceipt = await arcReceiptMinter.mint(receipt);
+      receipt = await store.update(id, { nftReceipt, status: "finalizing" });
+      await this.appendTraceWrites(id, () => intentTraceRegistry.recordReceiptMint(receipt!, nftReceipt));
       const actualFeeLines = [
         ...this.feeLinesFrom(bridgeReceipt),
         ...this.feeLinesFrom(protocolReceipt),
@@ -245,12 +256,14 @@ export class IntentOrchestrator {
         actualFeeUsd: sumFeeLinesUsd(actualFeeLines),
         status: "succeeded"
       });
+      await this.appendTraceWrites(id, () => intentTraceRegistry.updateStatus(receipt, "completed"));
 
       const aiNarration = this.narrator.narrate(receipt);
       await store.update(id, { aiNarration });
     } catch (err) {
       console.error(`[Orchestrator] Background execution failed:`, err);
-      await store.update(id, { status: "failed", error: err instanceof Error ? err.message : String(err) });
+      const failedReceipt = await store.update(id, { status: "failed", error: err instanceof Error ? err.message : String(err) });
+      await this.appendTraceWrites(id, () => intentTraceRegistry.updateStatus(failedReceipt, "failed"));
     }
   }
 
@@ -424,6 +437,35 @@ export class IntentOrchestrator {
     return maybeLines.filter((line): line is FeeLineItem =>
       Boolean(line && typeof line === "object" && "amountUsd" in line && "currency" in line)
     );
+  }
+
+  private async appendTraceWrites(
+    id: string,
+    writer: () => Promise<TraceWrite | TraceWrite[]>
+  ): Promise<void> {
+    if (!intentTraceRegistry.isConfigured()) return;
+
+    try {
+      const result = await writer();
+      const writes = Array.isArray(result) ? result : [result];
+      for (const write of writes) {
+        if (!write || Object.keys(write).length === 0) continue;
+        const current = await store.get(id);
+        if (!current) return;
+        await store.update(id, {
+          traceRegistry: mergeTraceRegistryReceipt(current.traceRegistry, write)
+        });
+      }
+    } catch (err) {
+      const current = await store.get(id);
+      if (!current) return;
+      await store.update(id, {
+        traceRegistry: mergeTraceRegistryReceipt(current.traceRegistry, {
+          kind: "error",
+          error: err instanceof Error ? err.message : String(err)
+        })
+      });
+    }
   }
 }
 

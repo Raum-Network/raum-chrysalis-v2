@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "WATCHPACK_POLLING=true CHOKIDAR_USEPOLLING=true next dev -p 3000",
+    "dev": "next dev -p 3000",
     "build": "pnpm --filter @arc-os/sdk build && next build",
     "lint": "next lint || true"
   },

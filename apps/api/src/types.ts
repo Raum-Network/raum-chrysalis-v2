@@ -149,6 +149,7 @@ export interface IntentReceipt {
   bridgeReceipt?: Record<string, unknown>;
   protocolReceipt?: Record<string, unknown>;
   nftReceipt?: NftReceipt;
+  traceRegistry?: Record<string, unknown>;
   actualFeeLines?: FeeLineItem[];
   actualFeeUsd?: string;
   aiNarration?: string;
