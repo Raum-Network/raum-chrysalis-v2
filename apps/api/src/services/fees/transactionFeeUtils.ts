@@ -22,6 +22,7 @@ async function nativeUsdPrice(symbol: string): Promise<number> {
   const prices = await liveQuoteService.getTokenPrices();
   if (upper === "SOL") return prices.solana;
   if (upper === "XLM") return prices.stellar;
+  if (upper === "XRP") return (prices as any).ripple ?? 0.50;
   return prices.ethereum;
 }
 
@@ -124,6 +125,29 @@ export async function stellarStroopsFeeLine(input: {
     amountUsd: usd(amountUsd),
     isEstimate: false,
     notes: input.txHash ? [`Actual fee from transaction ${input.txHash}.`] : ["Actual fee from confirmed Stellar transaction."]
+  };
+}
+
+export async function xrplDropsFeeLine(input: {
+  label: string;
+  feeDrops: bigint | number | string;
+  txHash?: string;
+  chargedBy?: FeeLineItem["chargedBy"];
+  payer?: FeeLineItem["payer"];
+}): Promise<FeeLineItem> {
+  const drops = BigInt(input.feeDrops);
+  const amount = Number(drops) / 1e6;
+  const amountUsd = amount * await nativeUsdPrice("XRP");
+  return {
+    key: `actual_ripple_${input.label.toLowerCase().replace(/[^a-z0-9]+/g, "_")}`,
+    label: input.label,
+    chargedBy: input.chargedBy ?? "destination_chain",
+    payer: input.payer ?? "user",
+    amount: nativeAmount(amount),
+    currency: "XRP",
+    amountUsd: usd(amountUsd),
+    isEstimate: false,
+    notes: input.txHash ? [`Actual fee from transaction ${input.txHash}.`] : ["Actual fee from confirmed Ripple transaction."]
   };
 }
 

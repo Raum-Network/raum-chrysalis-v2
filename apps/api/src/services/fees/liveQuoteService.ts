@@ -5,6 +5,7 @@ interface TokenPrices {
   solana: number;
   stellar: number;
   bitcoin: number;
+  ripple: number;
 }
 
 export class LiveQuoteService {
@@ -56,14 +57,15 @@ export class LiveQuoteService {
       ethereum: 3500,
       solana: 150,
       stellar: 0.1,
-      bitcoin: 65000
+      bitcoin: 65000,
+      ripple: 0.50
     };
 
     let prices: Partial<TokenPrices> = {};
 
     // Primary: Coingecko simple price (no API key required on testnet/dev).
     try {
-      const ids = "ethereum,solana,stellar,bitcoin";
+      const ids = "ethereum,solana,stellar,bitcoin,ripple";
       const res = await fetch(`${env.coingeckoApiUrl}/simple/price?ids=${ids}&vs_currencies=usd`, {
         headers: { Accept: "application/json" }
       });
@@ -73,7 +75,8 @@ export class LiveQuoteService {
           ethereum: Number(data?.ethereum?.usd) || undefined,
           solana: Number(data?.solana?.usd) || undefined,
           stellar: Number(data?.stellar?.usd) || undefined,
-          bitcoin: Number(data?.bitcoin?.usd) || undefined
+          bitcoin: Number(data?.bitcoin?.usd) || undefined,
+          ripple: Number(data?.ripple?.usd) || undefined
         };
       }
     } catch {
@@ -92,7 +95,8 @@ export class LiveQuoteService {
       ethereum: prices.ethereum ?? fallbackPrices.ethereum,
       solana: prices.solana ?? fallbackPrices.solana,
       stellar: prices.stellar ?? fallbackPrices.stellar,
-      bitcoin: prices.bitcoin ?? fallbackPrices.bitcoin
+      bitcoin: prices.bitcoin ?? fallbackPrices.bitcoin,
+      ripple: prices.ripple ?? fallbackPrices.ripple
     };
     this.priceCacheTime = now;
     return this.priceCache;

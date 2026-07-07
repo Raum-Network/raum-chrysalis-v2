@@ -86,6 +86,10 @@
         "address": "0xcbB7C0000aB88B473b1f5aFd9ef808440eed33Bf",
         "decimals": 8,
         "note": "Coinbase Wrapped BTC on Base"
+      },
+      "WXRP": {
+        "address": "0xa69f46403f350c33a9486c47c1f24de1c42289fe",
+        "decimals": 6
       }
     },
     "circle": {
@@ -129,6 +133,10 @@
       },
       "EURC": {
         "address": "0x08210F9170F89Ab7658F0B5E3fF39b0E03C594D4",
+        "decimals": 6
+      },
+      "WXRP": {
+        "address": "0xa69f46403f350c33a9486c47c1f24de1c42289fe",
         "decimals": 6
       }
     },
@@ -201,6 +209,55 @@
         "tokenMessengerMinter": "CDNG7HXAPBWICI2E3AUBP3YZWZELJLYSB6F5CC7WLDTLTHVM74SLRTHP",
         "messageTransmitter": "CBJ6MTCKKZG73PMDZCJMSFRD7DQEMI4FKDH7CGDSV4W6FHCRBCQAVVJY",
         "cctpForwarder": "CA66Q2WFBND6V4UEB7RD4SAXSVIWMD6RA4X3U32ELVFGXV5PJK4T4VSZ"
+      }
+    }
+  },
+  "rippleTestnet": {
+    "key": "RIPPLE",
+    "name": "Ripple Testnet",
+    "vm": "xrpl",
+    "rpcEnv": "RIPPLE_RPC_URL",
+    "rpcUrl": "https://s.altnet.rippletest.net:51234",
+    "explorer": "https://testnet.xrpl.org",
+    "nativeCurrency": {
+      "name": "XRP",
+      "symbol": "XRP",
+      "decimals": 6
+    },
+    "tokens": {
+      "USDC": {
+        "address": "",
+        "decimals": 6
+      }
+    },
+    "contracts": {
+      "destination": "rNrjh1KGZk2jBR3wPfAQnoidtFFYQKbQn2"
+    }
+  },
+  "rippleEvmTestnet": {
+    "key": "RIPPLE_EVM_TESTNET",
+    "name": "Ripple EVM Testnet",
+    "vm": "evm",
+    "chainId": 1449000,
+    "cctpDomain": 28,
+    "rpcEnv": "RIPPLE_EVM_RPC_URL",
+    "rpcUrl": "https://rpc.testnet.xrplevm.org",
+    "explorer": "https://explorer.testnet.xrplevm.org",
+    "nativeCurrency": {
+      "name": "XRP",
+      "symbol": "XRP",
+      "decimals": 18
+    },
+    "tokens": {
+      "USDC": {
+        "address": "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+        "decimals": 6
+      }
+    },
+    "circle": {
+      "cctp": {
+        "tokenMessengerV2": "0x8FE6B999Dc680CcFDD5Bf7EB0974218be2542DAA",
+        "messageTransmitterV2": "0xE737e5cEBEEBa77EFE34D4aa090756590b1CE275"
       }
     }
   }

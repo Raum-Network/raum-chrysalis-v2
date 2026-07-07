@@ -36,6 +36,10 @@ type WalletConnectionContextValue = {
   stellarConnecting: boolean;
   connectStellarWallet: () => Promise<void>;
   disconnectStellarWallet: () => Promise<void>;
+  rippleAddress: string | null;
+  rippleConnecting: boolean;
+  connectRippleWallet: () => Promise<void>;
+  disconnectRippleWallet: () => Promise<void>;
   lastWalletError: string | null;
   clearWalletError: () => void;
 };
@@ -106,6 +110,8 @@ export function WalletConnectionProvider({ children }: { children: ReactNode }) 
   const [solanaConnecting, setSolanaConnecting] = useState(false);
   const [stellarAddress, setStellarAddress] = useState<string | null>(null);
   const [stellarConnecting, setStellarConnecting] = useState(false);
+  const [rippleAddress, setRippleAddress] = useState<string | null>(null);
+  const [rippleConnecting, setRippleConnecting] = useState(false);
   const [lastWalletError, setLastWalletError] = useState<string | null>(null);
 
   async function connectSolanaWallet() {
@@ -180,6 +186,42 @@ export function WalletConnectionProvider({ children }: { children: ReactNode }) 
     setStellarAddress(null);
   }
 
+  async function connectRippleWallet() {
+    console.log("[WalletConnection] connectRippleWallet clicked");
+    setLastWalletError(null);
+    setRippleConnecting(true);
+    try {
+      const wallets = getWindowWallets();
+      const crossmarkSdk = wallets?.xrpl?.crossmark || wallets?.crossmark;
+      if (!crossmarkSdk) {
+        throw new Error("Crossmark extension was not detected. Please install it and refresh.");
+      }
+      
+      let result;
+      if (crossmarkSdk.methods && typeof crossmarkSdk.methods.signInAndWait === 'function') {
+        result = await crossmarkSdk.methods.signInAndWait();
+      } else if (typeof crossmarkSdk.signInAndWait === 'function') {
+        result = await crossmarkSdk.signInAndWait();
+      } else {
+        throw new Error("signInAndWait not found on Crossmark SDK.");
+      }
+      
+      const addr = result?.address || result?.response?.data?.address;
+      if (!addr) throw new Error("Crossmark did not return a Ripple address.");
+      setRippleAddress(addr);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setLastWalletError(msg);
+      console.error("[WalletConnection] Ripple connect error:", msg);
+    } finally {
+      setRippleConnecting(false);
+    }
+  }
+
+  async function disconnectRippleWallet() {
+    setRippleAddress(null);
+  }
+
   const value = useMemo<WalletConnectionContextValue>(() => ({
     solanaAddress,
     solanaConnecting,
@@ -189,9 +231,21 @@ export function WalletConnectionProvider({ children }: { children: ReactNode }) 
     stellarConnecting,
     connectStellarWallet,
     disconnectStellarWallet,
+    rippleAddress,
+    rippleConnecting,
+    connectRippleWallet,
+    disconnectRippleWallet,
     lastWalletError,
     clearWalletError: () => setLastWalletError(null),
-  }), [solanaAddress, solanaConnecting, stellarAddress, stellarConnecting, lastWalletError]);
+  }), [
+    solanaAddress,
+    solanaConnecting,
+    stellarAddress,
+    stellarConnecting,
+    rippleAddress,
+    rippleConnecting,
+    lastWalletError
+  ]);
 
   return (
     <WalletConnectionContext.Provider value={value}>

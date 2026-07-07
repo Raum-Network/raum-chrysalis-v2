@@ -42,7 +42,118 @@ export class CircleFeeEstimator {
       circleProduct = "None";
       feeBps = 0;
       estimatedTimeSeconds = toNumber(route.estimatedTimeSeconds, 5);
+    } else if (routeKind === "AXELAR_ITS") {
+      // Axelar ITS is a separate bridge protocol — no Circle product, no CCTP domain required.
+      // The relay fee is embedded as part of the source-chain payment (gas_fee_amount in XRP drops)
+      // and is reflected in the source gas estimate, not as a bridge percentage fee.
+      circleProduct = "Axelar ITS";
+      feeBps = 0;
+      assumptions.push("Axelar ITS bridge: relay cost is included in the XRP source gas estimate (gas_fee_amount memo). No separate Circle bridge fee applies.");
     } else if (routeKind === "GATEWAY") {
+      circleProduct = "Gateway";
+      // Try live Gateway transfer fee via Circle Iris (Gateway settles over CCTP domains).
+      let liveGatewayBps: number | null = null;
+      if (env.liveFees && source.cctpDomain !== undefined && destination.cctpDomain !== undefined) {
+        liveGatewayBps = await liveQuoteService.getCctpLiveFeeBps(source.cctpDomain, destination.cctpDomain, true);
+      }
+      if (liveGatewayBps !== null) {
+        feeBps = liveGatewayBps;
+        assumptions.push(`Gateway transfer fee retrieved live from Circle Iris API (feeBps: ${feeBps}).`);
+      } else {
+        feeBps = env.gatewayTransferFeeBps;
+        assumptions.push(`Gateway transfer fee: static fallback ${feeBps} bps (set CIRCLE_API_KEY to get live Iris rates).`);
+      }
+    } else if (routeKind === "CCTP_V2" || routeKind === "BRIDGEKIT") {
+      circleProduct = routeKind === "BRIDGEKIT"
+        ? (wantsFast ? "BridgeKit over CCTP Fast Transfer" : "BridgeKit over CCTP Standard Transfer")
+        : (wantsFast ? "CCTP V2 Fast Transfer" : "CCTP V2 Standard Transfer");
+
+      let liveFeeBps: number | null = null;
+      if (env.liveFees && source.cctpDomain !== undefined && destination.cctpDomain !== undefined) {
+        liveFeeBps = await liveQuoteService.getCctpLiveFeeBps(source.cctpDomain, destination.cctpDomain, wantsFast);
+      }
+
+      if (liveFeeBps !== null) {
+        feeBps = liveFeeBps;
+        assumptions.push(`Circle CCTP fee retrieved live from Circle Iris API (feeBps: ${feeBps}).`);
+      } else {
+        const fallbackBps = wantsFast ? env.cctpFastTransferFeeBps : 0;
+        const cctpRoute = feeModel.routes?.CCTP_V2 ?? {};
+        feeBps = wantsFast
+          ? toNumber(cctpRoute.fastFeeBpsBySourceChain?.[input.sourceChain], fallbackBps)
+          : toNumber(cctpRoute.standardFeeBps, 0);
+        assumptions.push(wantsFast ? "Fast Transfer fee fell back to static config (set CIRCLE_API_KEY to get live Iris rates)." : "Standard CCTP route: zero Circle transfer fee.");
+        // Only warn when using fallback for fast transfers (where fee is non-zero and uncertain)
+        if (wantsFast) {
+          warnings.push("Fast Transfer fee uses static fallback — set CIRCLE_API_KEY to fetch live rates from Circle Iris.");
+        }
+      }
+
+      estimatedTimeSeconds = wantsFast ? toNumber(route.fastEstimatedTimeSeconds, estimatedTimeSeconds) : estimatedTimeSeconds;
+
+      if (routeKind === "BRIDGEKIT") {
+        const serviceFee = wantsFast ? 0 : env.bridgekitUnderlyingFeeBps;
+        feeBps += serviceFee;
+        assumptions.push("BridgeKit is treated as the orchestration SDK around CCTP in the local model.");
+      }
+    }
+
+    // Only apply CCTP-specific warnings for CCTP-based routes, not Axelar ITS
+    if (routeKind !== "AXELAR_ITS" && routeKind !== "LOCAL" && routeKind !== "MOCK") {
+      if (input.asset !== "USDC") {
+        warnings.push(`${routeKind} quote is only reliable for USDC. ${input.asset} may require a local Arc EURC/FX step first.`);
+      }
+      if (source.cctpDomain === undefined || destination.cctpDomain === undefined) {
+        warnings.push("One side of this route is missing a configured CCTP domain.");
+      }
+    }
+
+    if (!env.circleApiKey && routeKind !== "AXELAR_ITS") {
+      assumptions.push("Circle API key not configured — Circle Iris fee APIs are skipped; static fee-model values are used.");
+    }
+
+    let feeUsd = bpsOf(amountUsd, feeBps);
+    if (routeKind === "GATEWAY") {
+      feeUsd = estimateGatewayMaxFeeUsdc({
+        amountUsdc: amountUsd,
+        sourceChain: input.sourceChain,
+        destinationChain: input.destinationChain
+      });
+    }
+
+    const lines: FeeLineItem[] = feeUsd > 0 ? [{
+      key: "circle_transfer_fee",
+      label: `${circleProduct} fee`,
+      chargedBy: "circle",
+      payer: "user",
+      amount: usd(feeUsd),
+      currency: "USDC",
+      amountUsd: usd(feeUsd),
+      isEstimate: true,
+      notes: routeKind === "GATEWAY"
+        ? ["Included in the source-chain depositor funding amount."]
+        : [`Mode: ${cctpMode}. Fee bps: ${feeBps}.`]
+    }] : [{
+      key: "circle_transfer_fee",
+      label: `${circleProduct} fee`,
+      chargedBy: routeKind === "AXELAR_ITS" ? "axelar" : "circle",
+      payer: "not_applicable",
+      amount: "0",
+      currency: "USDC",
+      amountUsd: "0",
+      isEstimate: true,
+      notes: [routeKind === "AXELAR_ITS"
+        ? "Axelar ITS relay fee is bundled into the XRP source gas payment."
+        : "No Circle transfer fee is modeled for this route/mode."]
+    }];
+
+    estimatedTimeSeconds = routeEstimatedTimeSeconds(routeKind, estimatedTimeSeconds);
+
+    return { circleProduct, feeBps, feeUsd, estimatedTimeSeconds, lines, warnings, assumptions };
+  }
+}
+
+
       circleProduct = "Gateway";
       // Try live Gateway transfer fee via Circle Iris (Gateway settles over CCTP domains).
       let liveGatewayBps: number | null = null;

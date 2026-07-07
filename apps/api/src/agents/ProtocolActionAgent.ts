@@ -33,7 +33,10 @@ export class ProtocolActionAgent {
     }
 
     if (input.protocol.includes("UNISWAP")) {
-      const tokenIn = addressFromMetadata(input.metadata?.tokenIn, chain.tokens.USDC.address);
+      const defaultTokenIn = input.sourceChain === "RIPPLE"
+        ? (chain.tokens.WXRP?.address ?? "0xa69f46403f350c33a9486c47c1f24de1c42289fe")
+        : chain.tokens.USDC.address;
+      const tokenIn = addressFromMetadata(input.metadata?.tokenIn, defaultTokenIn);
       const tokenOut = addressFromMetadata(input.metadata?.tokenOut, chain.tokens.USDC.address);
       const feeTier = Number(input.metadata?.fee ?? 500);
       const recipient = addressFromMetadata(input.recipient, zeroAddress);
@@ -71,7 +74,10 @@ export class ProtocolActionAgent {
     }
 
     if (input.protocol === "ETH_AAVE_V3") {
-      const tokenIn = addressFromMetadata(chain.tokens.USDC.address, zeroAddress);
+      const defaultTokenIn = input.sourceChain === "RIPPLE"
+        ? (chain.tokens.WXRP?.address ?? "0xa69f46403f350c33a9486c47c1f24de1c42289fe")
+        : chain.tokens.USDC.address;
+      const tokenIn = addressFromMetadata(input.metadata?.tokenIn ?? defaultTokenIn, zeroAddress);
       const tokenOut = addressFromMetadata(input.metadata?.tokenOut, "0xC558DBdd856501FCd9aaF1E62eae57A9F0629a3c");
       const fee = Number(input.metadata?.fee ?? 3000);
       const amountOutMin = bigintFromMetadata(input.metadata?.amountOutMin, 0n);

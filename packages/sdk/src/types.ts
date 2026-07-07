@@ -1,6 +1,6 @@
 export type SupportedChain = "ARC" | "BASE_SEPOLIA" | "ETHEREUM_SEPOLIA" | "SOLANA_DEVNET" | "STELLAR_TESTNET";
-export type SupportedAsset = "USDC" | "EURC";
-export type RouteKind = "GATEWAY" | "BRIDGEKIT" | "CCTP_V2" | "LOCAL" | "MOCK";
+export type SupportedAsset = "USDC" | "EURC" | "XRP";
+export type RouteKind = "GATEWAY" | "BRIDGEKIT" | "CCTP_V2" | "LOCAL" | "MOCK" | "AXELAR_ITS";
 export type OptimizationGoal = "balanced" | "lowest_cost" | "fastest" | "safest";
 export type PaymasterMode = "sponsored" | "user_usdc" | "native" | "none";
 

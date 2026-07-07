@@ -166,6 +166,9 @@ export class FeeQuoteAgent {
     if (input.sourceChain === input.destinationChain) return input.protocol === "ARC_GATEWAY" ? ["GATEWAY", "LOCAL"] : ["LOCAL"];
     const source = findChainByKey(input.sourceChain);
     const destination = findChainByKey(input.destinationChain);
+    if (source.vm === "xrpl" || destination.vm === "xrpl") {
+      return ["AXELAR_ITS"];
+    }
     const routes: RouteKind[] = [];
     if (hasGatewayContracts(source) && hasGatewayContracts(destination)) routes.push("GATEWAY");
     routes.push("CCTP_V2");
@@ -240,6 +243,16 @@ export class FeeQuoteAgent {
     if ((routeKind === "CCTP_V2" || routeKind === "BRIDGEKIT") && input.asset !== "USDC") reasons.push(`${routeKind} supports USDC in this scaffold. Use an Arc FX step for ${input.asset}.`);
     if ((routeKind === "CCTP_V2" || routeKind === "BRIDGEKIT") && (source.cctpDomain === undefined || destination.cctpDomain === undefined)) reasons.push("CCTP domain missing for source or destination chain.");
     if (routeKind === "BRIDGEKIT" && !(source.vm === "evm" && destination.vm === "evm")) reasons.push("BridgeKit route in this scaffold currently supports EVM-to-EVM execution only.");
+    if (routeKind === "AXELAR_ITS" && source.vm !== "xrpl" && destination.vm !== "xrpl") reasons.push("Axelar ITS route in this scaffold supports XRPL VM chains only.");
+
+    if (input.sourceChain === "RIPPLE") {
+      if (input.protocol === "BASE_MORPHO_BLUE") {
+        reasons.push("Morpho Blue does not support direct XRP deposits from Ripple Ledger; swap XRP to USDC first on Base.");
+      }
+      if (input.protocol === "ARC_USYC_TELLER") {
+        reasons.push("USYC Teller does not support direct XRP deposits from Ripple Ledger; swap XRP to USDC first on Arc.");
+      }
+    }
 
     return { eligible: reasons.length === 0, reasons };
   }

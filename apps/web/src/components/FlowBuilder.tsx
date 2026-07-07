@@ -2,7 +2,7 @@
 
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useAccount, useReadContract, useSwitchChain, useWriteContract, useWaitForTransactionReceipt, usePublicClient, useSignTypedData } from "wagmi";
-import { formatUnits, parseUnits } from "viem";
+import { formatUnits, parseUnits, encodeAbiParameters } from "viem";
 import { ArcOsClient } from "@arc-os/sdk";
 import type { AppConfig, ChainInfo, ProtocolInfo } from "@arc-os/sdk";
 import { signTransaction as signFreighterTransaction } from "@stellar/freighter-api";
@@ -35,6 +35,58 @@ const SOLANA_DEVNET_RPC_URL = process.env.NEXT_PUBLIC_SOLANA_DEVNET_RPC_URL ?? "
 const SOLANA_USDC_MINT = "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU";
 const SOLANA_TOKEN_PROGRAM_ID = new SolanaPublicKey("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA");
 const SOLANA_ASSOCIATED_TOKEN_PROGRAM_ID = new SolanaPublicKey("ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL");
+
+function decodeRippleAddress(address: string): Uint8Array {
+  const alphabet = "rpshnaf39wBUDNEGHJKLM4PQRST7VWXYZ2bcdeCg65jkm8oFqi1tuvAxyz";
+  let bytes = [0];
+  for (let i = 0; i < address.length; i++) {
+    const char = address[i];
+    let value = alphabet.indexOf(char);
+    if (value === -1) throw new Error("Invalid character in Ripple address");
+    
+    let carry = value;
+    for (let j = 0; j < bytes.length; j++) {
+      carry += bytes[j] * 58;
+      bytes[j] = carry & 0xff;
+      carry = carry >> 8;
+    }
+    while (carry > 0) {
+      bytes.push(carry & 0xff);
+      carry = carry >> 8;
+    }
+  }
+  for (let i = 0; i < address.length && address[i] === alphabet[0]; i++) {
+    bytes.push(0);
+  }
+  const decoded = new Uint8Array(bytes.reverse());
+  if (decoded.length < 25) {
+    const padded = new Uint8Array(25);
+    padded.set(decoded, 25 - decoded.length);
+    return padded.slice(1, 21);
+  }
+  return decoded.slice(decoded.length - 24, decoded.length - 4);
+}
+
+function toHex(str: string): string {
+  let hex = "";
+  for (let i = 0; i < str.length; i++) {
+    hex += str.charCodeAt(i).toString(16);
+  }
+  return hex.toUpperCase();
+}
+
+const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
+
+function normalizeEvmAddress(address: string): string {
+  if (!address) return ZERO_ADDRESS;
+  const clean = address.trim().toLowerCase();
+  return clean.startsWith("0x") ? clean : `0x${clean}`;
+}
+
+function evmAddressToAscii(address: string): string {
+  const clean = address.startsWith("0x") ? address.slice(2) : address;
+  return toHex(clean.toLowerCase());
+}
 
 const GATEWAY_AUTH_VALIDITY_WINDOW_SECONDS = 7 * 24 * 60 * 60 + 100;
 function createNonce() {
@@ -182,6 +234,60 @@ async function getStellarBalances(addressStr: string): Promise<{ xlm: number; us
   } catch (err) {
     console.error("Failed to get Stellar balances:", err);
     return { xlm: 0, usdc: 0 };
+  }
+}
+
+async function getRippleBalances(addressStr: string): Promise<{ xrp: number; usdc: number }> {
+  try {
+    const res = await fetch("https://s.altnet.rippletest.net:51234", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        method: "account_info",
+        params: [
+          {
+            account: addressStr,
+            ledger_index: "validated"
+          }
+        ]
+      })
+    });
+    let xrp = 0;
+    if (res.ok) {
+      const data = await res.json();
+      if (data?.result?.account_data?.Balance) {
+        xrp = Number(data.result.account_data.Balance) / 1_000_000;
+      }
+    }
+
+    let usdc = 0;
+    const linesRes = await fetch("https://s.altnet.rippletest.net:51234", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        method: "account_lines",
+        params: [
+          {
+            account: addressStr,
+            ledger_index: "validated"
+          }
+        ]
+      })
+    });
+    if (linesRes.ok) {
+      const linesData = await linesRes.json();
+      if (linesData?.result?.lines && Array.isArray(linesData.result.lines)) {
+        const usdcLine = linesData.result.lines.find((line: any) => line.currency === "USDC");
+        if (usdcLine) {
+          usdc = parseFloat(usdcLine.balance);
+        }
+      }
+    }
+
+    return { xrp, usdc };
+  } catch (err) {
+    console.error("Failed to get Ripple balances:", err);
+    return { xrp: 0, usdc: 0 };
   }
 }
 
@@ -579,10 +685,15 @@ export default function FlowBuilder() {
     stellarConnecting,
     connectStellarWallet,
     disconnectStellarWallet,
+    rippleAddress,
+    rippleConnecting,
+    connectRippleWallet,
+    disconnectRippleWallet,
     lastWalletError,
   } = useWalletConnections();
   const [solanaBalances, setSolanaBalances] = useState<{ sol: number; usdc: number } | null>(null);
   const [stellarBalances, setStellarBalances] = useState<{ xlm: number; usdc: number } | null>(null);
+  const [rippleBalances, setRippleBalances] = useState<{ xrp: number; usdc: number } | null>(null);
   const { switchChain } = useSwitchChain();
   const publicClient = usePublicClient();
   const chains: ChainInfo[] = config?.chains ?? FALLBACK_CHAINS;
@@ -594,7 +705,9 @@ export default function FlowBuilder() {
     ? solanaAddress ?? undefined
     : sourceVm === "soroban"
       ? stellarAddress ?? undefined
-      : address ?? undefined;
+      : sourceVm === "xrpl"
+        ? rippleAddress ?? undefined
+        : address ?? undefined;
 
   // Source chain ID for this intent
   const sourceChainId = CHAIN_KEY_TO_ID[sourceChain];
@@ -816,6 +929,25 @@ export default function FlowBuilder() {
   }, [stellarAddress]);
 
   useEffect(() => {
+    if (!rippleAddress) {
+      setRippleBalances(null);
+      return;
+    }
+    const addr = rippleAddress as string;
+    let active = true;
+    async function update() {
+      const bals = await getRippleBalances(addr);
+      if (active) setRippleBalances(bals);
+    }
+    update();
+    const interval = setInterval(update, 10000);
+    return () => {
+      active = false;
+      clearInterval(interval);
+    };
+  }, [rippleAddress]);
+
+  useEffect(() => {
     if (lastWalletError) setError(lastWalletError);
   }, [lastWalletError]);
 
@@ -907,7 +1039,7 @@ export default function FlowBuilder() {
   const request = useMemo(() => ({
     sourceChain: sourceChain as any,
     destinationChain: destinationChain as any,
-    asset: "USDC" as const,
+    asset: sourceChain === "RIPPLE" ? "XRP" as const : "USDC" as const,
     amount,
     protocol,
     action,
@@ -1145,6 +1277,13 @@ export default function FlowBuilder() {
         }
       }
 
+      if (sourceVm === "xrpl") {
+        if (rippleBalances && rippleBalances.xrp < Number(amount)) {
+          setLoading(null);
+          return setError(`Insufficient XRP balance on Ripple. You need at least ${Number(amount).toFixed(6)} XRP, but you only have ${rippleBalances.xrp.toFixed(6)} XRP.`);
+        }
+      }
+
       if (routeKind === "GATEWAY") {
         if (sourceVm !== "evm" || !address) {
           setLoading(null);
@@ -1294,6 +1433,67 @@ export default function FlowBuilder() {
           });
           userTxHash = stellarDepositTxHash;
           console.log(`[FlowBuilder] Stellar USDC deposit confirmed: ${stellarDepositTxHash}`);
+        } else if (sourceVm === "xrpl") {
+          const depositAddress = (selectedQuote as any).metadata?.depositAddress || (sourceChainInfo as any)?.contracts?.destination || "rNrjh1KGZk2jBR3wPfAQnoidtFFYQKbQn2";
+          console.log(`[FlowBuilder] Requesting Crossmark transfer of ${amount} XRP to Axelar gateway (${depositAddress})...`);
+          
+          const amountInDrops = Math.round(Number(amount) * 1_000_000).toString();
+          const evmAddressDestination = normalizeEvmAddress(recipient || ZERO_ADDRESS);
+          
+          const accountIDBytes = decodeRippleAddress(rippleAddress!);
+          const xrplToEVMAddress = `0x${Buffer.from(accountIDBytes).toString("hex")}`;
+          const encodedPayload = encodeAbiParameters(
+            [
+              { type: "address", name: "staker" },
+              { type: "string", name: "nftId" }
+            ],
+            [
+              xrplToEVMAddress as `0x${string}`,
+              `intent-${Date.now()}`
+            ]
+          );
+
+          const addressInAscii = evmAddressToAscii(evmAddressDestination);
+          const axelarGasDrops = "2000000";
+          
+          const memos = [
+            { Memo: { MemoType: toHex("type"), MemoData: toHex("interchain_transfer") } },
+            { Memo: { MemoType: toHex("destination_address"), MemoData: addressInAscii } },
+            { Memo: { MemoType: toHex("destination_chain"), MemoData: toHex(destinationChain === "BASE_SEPOLIA" ? "base-sepolia" : "ethereum-sepolia") } },
+            { Memo: { MemoType: toHex("gas_fee_amount"), MemoData: toHex(axelarGasDrops) } },
+            { Memo: { MemoType: toHex("payload"), MemoData: encodedPayload.slice(2) } }
+          ];
+
+          const payment = {
+            TransactionType: "Payment",
+            Account: rippleAddress,
+            Destination: depositAddress,
+            Amount: amountInDrops,
+            Memos: memos,
+          };
+
+          const crossmarkSdk = (window as any).xrpl?.crossmark || (window as any).crossmark;
+          if (!crossmarkSdk) throw new Error("Crossmark extension not found");
+
+          let result;
+          if (crossmarkSdk.methods && typeof crossmarkSdk.methods.signAndSubmitAndWait === 'function') {
+            result = await crossmarkSdk.methods.signAndSubmitAndWait(payment);
+          } else if (typeof crossmarkSdk.signAndSubmitAndWait === 'function') {
+            result = await crossmarkSdk.signAndSubmitAndWait(payment);
+          } else if (crossmarkSdk.methods && typeof crossmarkSdk.methods.signAndSubmit === 'function') {
+            result = await crossmarkSdk.methods.signAndSubmit(payment);
+          } else if (typeof crossmarkSdk.signAndSubmit === 'function') {
+            result = await crossmarkSdk.signAndSubmit(payment);
+          } else {
+            throw new Error("signAndSubmit not found on Crossmark SDK");
+          }
+
+          const txData = result?.response?.data;
+          userTxHash = txData?.tx_json?.hash || txData?.hash || result?.hash;
+          if (!userTxHash) {
+            throw new Error("Crossmark transaction submitted, but no transaction hash was returned.");
+          }
+          console.log(`[FlowBuilder] Ripple XRP deposit confirmed: ${userTxHash}`);
         } else {
           console.log(`[FlowBuilder] ${sourceChain} source uses ${sourceVm}; no source deposit handler is configured.`);
         }
@@ -1498,10 +1698,13 @@ export default function FlowBuilder() {
   const onWrongChain = sourceVm === "evm" && isConnected && connectedChain?.id !== sourceChainId;
   const needsSolanaSourceWallet = sourceVm === "svm" && !solanaAddress;
   const needsStellarSourceWallet = sourceVm === "soroban" && !stellarAddress;
+  const needsRippleSourceWallet = sourceVm === "xrpl" && !rippleAddress;
   const needsSolanaReceiveWallet = destVm === "svm" && !solanaAddress;
   const needsStellarReceiveWallet = destVm === "soroban" && !stellarAddress;
   const showSolanaWalletBar = sourceVm === "svm" || destVm === "svm";
   const showStellarWalletBar = sourceVm === "soroban" || destVm === "soroban";
+  const showRippleWalletBar = sourceVm === "xrpl" || destVm === "xrpl";
+  const hasInsufficientRippleBalance = sourceVm === "xrpl" && rippleBalances !== null && rippleBalances.xrp < amountNumber;
 
   const panelOpen = executionPhase !== "idle" || (canPreviewRoutes && (loading === "quote" || Boolean(quote)));
 
@@ -1581,6 +1784,8 @@ export default function FlowBuilder() {
   async function handlePrimaryCta() {
     if (needsSolanaSourceWallet) return setError("Please connect your Solana wallet using the Connect Wallet button at the top left.");
     if (needsStellarSourceWallet) return setError("Please connect your Stellar wallet using the Connect Wallet button at the top left.");
+    if (needsRippleSourceWallet) return setError("Please connect your Ripple wallet using the Connect Wallet button at the top left.");
+    if (hasInsufficientRippleBalance) return setError(`Insufficient XRP balance. You need ${amountNumber} XRP but only have ${rippleBalances?.xrp ?? 0} XRP.`);
     if (sourceVm === "evm" && (!isConnected || !address)) return setError("Connect your EVM wallet with RainbowKit to execute this route.");
     if (!hasEnteredAmount) return setError("Enter an amount to see routes.");
     if (!selectedQuote) return getRoutes();
@@ -1604,6 +1809,8 @@ export default function FlowBuilder() {
     executionPhase === "completed" ? "Transaction Complete" :
     needsSolanaSourceWallet ? "Solana Wallet Not Connected" :
     needsStellarSourceWallet ? "Stellar Wallet Not Connected" :
+    needsRippleSourceWallet ? "Ripple Wallet Not Connected" :
+    hasInsufficientRippleBalance ? "Insufficient XRP balance" :
     sourceVm === "evm" && !isConnected ? "Connect Wallet to See Routes" :
     !hasEnteredAmount ? "Enter Amount" :
     !selectedQuote ? "Get Routes" :
@@ -1613,6 +1820,7 @@ export default function FlowBuilder() {
     needsApproval ? `Approve ${sourceDepositRequiredNumber.toFixed(6)} USDC` :
     sourceVm === "svm" ? "Transfer USDC with Phantom" :
     sourceVm === "soroban" ? "Transfer USDC with Freighter" :
+    sourceVm === "xrpl" ? "Transfer XRP with Crossmark" :
     "Execute Transaction";
 
   return (
@@ -1700,6 +1908,20 @@ export default function FlowBuilder() {
             <button className="wallet-switch-btn" onClick={disconnectStellarWallet}>Disconnect</button>
           </div>
         )}
+        {showRippleWalletBar && rippleAddress && (
+          <div className="wallet-bar non-evm-bar">
+            <span className="wallet-addr" style={{ color: "#000", background: "transparent" }}>Ripple {truncateAddr(rippleAddress)}</span>
+            {rippleBalances && (
+              <span className="wallet-balance" style={{ display: "flex", flexDirection: "column", alignItems: "flex-end" }}>
+                <span className="wallet-balance-label">Balances</span>
+                <strong style={{ fontSize: "14px", color: "#000" }}>
+                  {rippleBalances.usdc.toFixed(2)} USDC / {rippleBalances.xrp.toFixed(2)} XRP
+                </strong>
+              </span>
+            )}
+            <button className="wallet-switch-btn" onClick={disconnectRippleWallet}>Disconnect</button>
+          </div>
+        )}
 
         <form onSubmit={(e) => e.preventDefault()}>
           {/* Amount + source chain */}
@@ -1708,8 +1930,20 @@ export default function FlowBuilder() {
               <input type="number" className="amount-input" value={amount}
                 onChange={(e: any) => setAmount(e.target.value)} placeholder="0.0" />
               <div className="amount-right">
-                <div className="token-badge">USDC</div>
-                {isConnected && usdcBalance !== null && (
+                <div className="token-badge">{sourceChain === "RIPPLE" ? "XRP" : "USDC"}</div>
+                {sourceVm === "xrpl" && rippleBalances !== null && (
+                  <button type="button" className="max-btn"
+                    onClick={() => setAmount(String(rippleBalances.xrp))}>MAX</button>
+                )}
+                {sourceVm === "svm" && solanaBalances !== null && (
+                  <button type="button" className="max-btn"
+                    onClick={() => setAmount(String(solanaBalances.usdc))}>MAX</button>
+                )}
+                {sourceVm === "soroban" && stellarBalances !== null && (
+                  <button type="button" className="max-btn"
+                    onClick={() => setAmount(String(stellarBalances.usdc))}>MAX</button>
+                )}
+                {sourceVm === "evm" && isConnected && usdcBalance !== null && (
                   <button type="button" className="max-btn"
                     onClick={() => setAmount(usdcBalance)}>MAX</button>
                 )}

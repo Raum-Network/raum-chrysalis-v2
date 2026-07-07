@@ -75,13 +75,14 @@ export const protocolConfig = loadRepoJson<Record<string, any[]>>("protocols.jso
 export const agentPolicies = loadRepoJson<Record<string, any>>("agent-policies.json");
 export const feeModel = loadRepoJson<Record<string, any>>("fee-model.json");
 
-
 const protocolGroupToChainKey: Record<string, string> = {
   arcTestnet: "ARC",
   baseSepolia: "BASE_SEPOLIA",
   ethereumSepolia: "ETHEREUM_SEPOLIA",
   solanaDevnet: "SOLANA_DEVNET",
-  stellarTestnet: "STELLAR_TESTNET"
+  stellarTestnet: "STELLAR_TESTNET",
+  rippleTestnet: "RIPPLE",
+  rippleEvmTestnet: "RIPPLE_EVM_TESTNET"
 };
 
 export function protocolGroupForChainKey(chainKey: string): string | undefined {

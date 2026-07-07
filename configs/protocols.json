@@ -176,5 +176,38 @@
         "supply"
       ]
     }
+  ],
+  "rippleTestnet": [
+    {
+      "key": "RIPPLE_XRP_TRANSFER",
+      "name": "XRP Transfer",
+      "type": "bridge_transfer",
+      "category": "bridge",
+      "adapter": "bridge_only",
+      "supportedAdapterActions": [
+        "transfer"
+      ]
+    }
+  ],
+  "rippleEvmTestnet": [
+    {
+      "key": "RIPPLE_EVM_USDC_TRANSFER",
+      "name": "USDC Transfer",
+      "type": "bridge_transfer",
+      "category": "bridge",
+      "adapter": "bridge_only",
+      "supportedAdapterActions": [
+        "transfer"
+      ]
+    },
+    {
+      "key": "RIPPLE_EVM_AAVE_V3",
+      "name": "Aave V3",
+      "type": "lending",
+      "category": "defi",
+      "poolAddressesProvider": "0x012bAC54348C0E635dCAc9D5FB99f06F24136C9A",
+      "pool": "0x6Ae43d3271ff6888e7Fc43Fd7321a503ff738951",
+      "adapter": "AaveV3SwapDepositAdapter"
+    }
   ]
 }

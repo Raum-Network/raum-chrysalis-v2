@@ -1,13 +1,13 @@
-export type VmType = "evm" | "svm" | "soroban";
-export type RouteKind = "GATEWAY" | "BRIDGEKIT" | "CCTP_V2" | "LOCAL" | "MOCK";
+export type VmType = "evm" | "svm" | "soroban" | "xrpl";
+export type RouteKind = "GATEWAY" | "BRIDGEKIT" | "CCTP_V2" | "LOCAL" | "MOCK" | "AXELAR_ITS";
 export type IntentStatus = "created" | "quoted" | "planned" | "bridging" | "executing" | "finalizing" | "succeeded" | "failed" | "needs_approval";
 export type OptimizationGoal = "balanced" | "lowest_cost" | "fastest" | "safest";
 export type FeeConfidence = "low" | "medium" | "high";
-
+ 
 export interface CreateIntentInput {
   sourceChain: string;
   destinationChain: string;
-  asset: "USDC" | "EURC";
+  asset: "USDC" | "EURC" | "XRP";
   amount: string;
   protocol: string;
   action: string;

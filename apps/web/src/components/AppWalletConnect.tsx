@@ -21,6 +21,10 @@ export default function AppWalletConnect() {
     stellarConnecting,
     connectStellarWallet,
     disconnectStellarWallet,
+    rippleAddress,
+    rippleConnecting,
+    connectRippleWallet,
+    disconnectRippleWallet,
     lastWalletError,
     clearWalletError,
   } = useWalletConnections();
@@ -29,7 +33,7 @@ export default function AppWalletConnect() {
     if (!open) clearWalletError();
   }, [open, clearWalletError]);
 
-  const connectedCount = [isConnected, Boolean(solanaAddress), Boolean(stellarAddress)].filter(Boolean).length;
+  const connectedCount = [isConnected, Boolean(solanaAddress), Boolean(stellarAddress), Boolean(rippleAddress)].filter(Boolean).length;
   const triggerLabel = connectedCount > 0
     ? `${connectedCount} Wallet${connectedCount === 1 ? "" : "s"} Connected`
     : "Connect Wallet";
@@ -114,6 +118,28 @@ export default function AppWalletConnect() {
                     </span>
                     <span className={`wallet-action-btn ${stellarAddress ? "connected" : ""}`}>
                       {stellarConnecting ? "Connecting..." : stellarAddress ? "Disconnect" : "Connect"}
+                    </span>
+                  </button>
+
+                  <button
+                    type="button"
+                    className="wallet-choice-option"
+                    onClick={async () => {
+                      if (rippleAddress) {
+                        await disconnectRippleWallet();
+                      } else {
+                        await connectRippleWallet();
+                      }
+                    }}
+                    disabled={rippleConnecting}
+                  >
+                    <span className="wallet-choice-icon ripple-icon" aria-hidden="true" />
+                    <span>
+                      <strong>Crossmark</strong>
+                      <small>{rippleConnecting ? "Connecting..." : rippleAddress ? truncateAddr(rippleAddress) : "Ripple wallet"}</small>
+                    </span>
+                    <span className={`wallet-action-btn ${rippleAddress ? "connected" : ""}`}>
+                      {rippleConnecting ? "Connecting..." : rippleAddress ? "Disconnect" : "Connect"}
                     </span>
                   </button>
                 </div>

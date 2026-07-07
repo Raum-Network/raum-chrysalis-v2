@@ -9,6 +9,7 @@ import { env, findChainByKey } from "../config/index.js";
 
 import { GatewayService } from "../services/bridge/gatewayService.js";
 import { CctpService } from "../services/bridge/cctpService.js";
+import { axelarItsService } from "../services/bridge/axelarItsService.js";
 import { ProtocolExecutorRegistry } from "../services/protocols/ProtocolExecutorRegistry.js";
 import { arcReceiptMinter } from "../services/receipts/arcReceiptMinter.js";
 import { intentTraceRegistry, mergeTraceRegistryReceipt, type TraceWrite } from "../services/trace/intentTraceRegistry.js";
@@ -20,6 +21,7 @@ import {
   evmTransactionFeeLine,
   solanaTransactionFeeLine,
   stellarStroopsFeeLine,
+  xrplDropsFeeLine,
   sumFeeLinesUsd
 } from "../services/fees/transactionFeeUtils.js";
 
@@ -30,7 +32,7 @@ const erc20BalanceAbi = parseAbi([
 export const createIntentSchema = z.object({
   sourceChain: z.string().min(1),
   destinationChain: z.string().min(1),
-  asset: z.enum(["USDC", "EURC"]),
+  asset: z.enum(["USDC", "EURC", "XRP"]),
   amount: z.string().min(1),
   protocol: z.string().min(1),
   action: z.string().min(1),
@@ -131,9 +133,10 @@ export class IntentOrchestrator {
       const isNonEvmDestination = dstVm !== "evm";
       const isBridgeOnly = analysis.plan.protocol.endsWith("_USDC_TRANSFER");
 
+      const tokenKey = analysis.plan.asset === "XRP" ? "WXRP" : "USDC";
       let destinationBalanceBeforeBridge = 0n;
       if (!isNonEvmDestination && !isBridgeOnly) {
-        destinationBalanceBeforeBridge = await this.getDestinationRouterUsdcBalance(analysis.plan.destinationChain);
+        destinationBalanceBeforeBridge = await this.getDestinationRouterTokenBalance(analysis.plan.destinationChain, tokenKey);
       }
 
       let bridgeReceipt: any;
@@ -144,6 +147,8 @@ export class IntentOrchestrator {
         bridgeReceipt = await this.gateway.executeGatewayMint(analysis.plan, receipt.input.metadata);
       } else if (analysis.plan.routeKind === "BRIDGEKIT") {
         bridgeReceipt = await this.bridgeKit.bridge(analysis.plan);
+      } else if (analysis.plan.routeKind === "AXELAR_ITS") {
+        bridgeReceipt = await axelarItsService.executeBridge(analysis.plan, receipt.input.metadata);
       } else if (analysis.plan.routeKind === "CCTP_V2") {
         bridgeReceipt = await this.cctp.executeBridge(analysis.plan);
       } else {
@@ -194,7 +199,8 @@ export class IntentOrchestrator {
           const executionAmount = await this.waitForDestinationRouterFunding(
             analysis.plan.destinationChain,
             destinationBalanceBeforeBridge,
-            parseUnitsDecimal(analysis.plan.amount, 6)
+            parseUnitsDecimal(analysis.plan.amount, 6),
+            tokenKey
           );
           analysis.plan = {
             ...analysis.plan,
@@ -267,13 +273,14 @@ export class IntentOrchestrator {
     }
   }
 
-  private async getDestinationRouterUsdcBalance(chainKey: string): Promise<bigint> {
+  private async getDestinationRouterTokenBalance(chainKey: string, tokenKey: string): Promise<bigint> {
     const chain = findChainByKey(chainKey);
     const routerAddress = chainKey === "ARC" ? env.arcRouterAddress
       : chainKey === "BASE_SEPOLIA" ? env.baseRouterAddress
       : chainKey === "ETHEREUM_SEPOLIA" ? env.ethereumRouterAddress
       : "";
-    if (!routerAddress || !chain.tokens?.USDC?.address) return 0n;
+    const token = chain.tokens?.[tokenKey];
+    if (!routerAddress || !token?.address) return 0n;
 
     const rpc = process.env[chain.rpcEnv] ?? chain.rpcUrl;
     const viemChain = {
@@ -284,7 +291,7 @@ export class IntentOrchestrator {
     };
     const publicClient = createPublicClient({ chain: viemChain, transport: http(rpc) });
     return publicClient.readContract({
-      address: chain.tokens.USDC.address as Hex,
+      address: token.address as Hex,
       abi: erc20BalanceAbi,
       functionName: "balanceOf",
       args: [routerAddress as Hex]
@@ -294,30 +301,31 @@ export class IntentOrchestrator {
   private async waitForDestinationRouterFunding(
     chainKey: string,
     balanceBeforeBridge: bigint,
-    expectedDelta: bigint
+    expectedDelta: bigint,
+    tokenKey: string
   ): Promise<bigint> {
     if (expectedDelta <= 0n) return 0n;
     const deadline = Date.now() + 30 * 60 * 1000;
     let latestBalance = balanceBeforeBridge;
 
     while (Date.now() < deadline) {
-      latestBalance = await this.getDestinationRouterUsdcBalance(chainKey);
+      latestBalance = await this.getDestinationRouterTokenBalance(chainKey, tokenKey);
       const receivedForIntent = latestBalance > balanceBeforeBridge ? latestBalance - balanceBeforeBridge : 0n;
-      console.log(`[Orchestrator] Destination router USDC on ${chainKey}: before=${formatUnitsDecimal(balanceBeforeBridge, 6)}, current=${formatUnitsDecimal(latestBalance, 6)}, received=${formatUnitsDecimal(receivedForIntent, 6)}, expected=${formatUnitsDecimal(expectedDelta, 6)}`);
+      console.log(`[Orchestrator] Destination router ${tokenKey} on ${chainKey}: before=${formatUnitsDecimal(balanceBeforeBridge, 6)}, current=${formatUnitsDecimal(latestBalance, 6)}, received=${formatUnitsDecimal(receivedForIntent, 6)}, expected=${formatUnitsDecimal(expectedDelta, 6)}`);
       if (receivedForIntent >= expectedDelta) return receivedForIntent;
       await new Promise((resolve) => setTimeout(resolve, 5000));
     }
 
     const received = latestBalance > balanceBeforeBridge ? latestBalance - balanceBeforeBridge : 0n;
-    throw new Error(`Bridge funds not available on destination router yet. Expected ${formatUnitsDecimal(expectedDelta, 6)} USDC for this intent, received ${formatUnitsDecimal(received, 6)} USDC after waiting.`);
+    throw new Error(`Bridge funds not available on destination router yet. Expected ${formatUnitsDecimal(expectedDelta, 6)} ${tokenKey} for this intent, received ${formatUnitsDecimal(received, 6)} ${tokenKey} after waiting.`);
   }
 
   private async collectSourceMetadataFeeLines(receipt: IntentReceipt): Promise<FeeLineItem[]> {
     const metadata = receipt.input.metadata ?? {};
     const srcChain = findChainByKey(receipt.input.sourceChain);
-    if (srcChain.vm !== "evm" && receipt.input.asset === "USDC") {
+    if (srcChain.vm !== "evm" && (receipt.input.asset === "USDC" || receipt.input.asset === "XRP")) {
       if (typeof metadata.userDepositTxHash !== "string" || metadata.userDepositTxHash.length === 0) {
-        throw new Error(`${srcChain.name} source routes require a user-signed USDC deposit before backend execution.`);
+        throw new Error(`${srcChain.name} source routes require a user-signed deposit transaction before backend execution.`);
       }
     }
 
@@ -392,6 +400,26 @@ export class IntentOrchestrator {
       return feeLines;
     }
 
+    if (srcChain.vm === "xrpl") {
+      const feeLines: FeeLineItem[] = [];
+      for (const tx of uniqueTxs) {
+        console.log(`[Orchestrator] Verifying XRPL source tx: ${tx.label} ${tx.hash}...`);
+        const txResult = await this.waitForXrplSourceTx(srcRpc, tx.hash);
+        if (txResult.meta?.TransactionResult !== "tesSUCCESS") {
+          throw new Error(`${tx.label} failed or was not validated on XRPL: ${tx.hash}`);
+        }
+        const feeLine = await xrplDropsFeeLine({
+          label: tx.label,
+          feeDrops: String(txResult.Fee ?? 0),
+          txHash: tx.hash,
+          chargedBy: "source_chain",
+          payer: "user"
+        });
+        if (feeLine) feeLines.push(feeLine);
+      }
+      return feeLines;
+    }
+
     const srcViemChain = {
       id: srcChain.chainId,
       name: srcChain.name,
@@ -428,6 +456,30 @@ export class IntentOrchestrator {
       await new Promise((resolve) => setTimeout(resolve, 2000));
     }
     throw new Error(`Timed out waiting for Stellar source transaction: ${txHash}`);
+  }
+
+  private async waitForXrplSourceTx(rpcUrl: string, txHash: string): Promise<any> {
+    const deadline = Date.now() + 120_000;
+    while (Date.now() < deadline) {
+      try {
+        const response = await fetch(rpcUrl, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            method: "tx",
+            params: [{ transaction: txHash }]
+          })
+        });
+        const data = await response.json() as any;
+        if (data.result && data.result.validated === true) {
+          return data.result;
+        }
+      } catch (err) {
+        console.error("[Orchestrator] Error fetching XRPL tx:", err);
+      }
+      await new Promise((resolve) => setTimeout(resolve, 2000));
+    }
+    throw new Error(`Timed out waiting for XRPL source transaction: ${txHash}`);
   }
 
   private feeLinesFrom(value: unknown): FeeLineItem[] {
